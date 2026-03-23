@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MYC Book Fair Check-In</title>
+  <style>
+    :root {
+      --bg:          #F5F5F7;
+      --card:        #FFFFFF;
+      --blue:        #0071E3;
+      --blue-light:  rgba(0,113,227,0.1);
+      --green:       #34C759;
+      --green-light: rgba(52,199,89,0.12);
+      --red:         #FF3B30;
+      --red-light:   rgba(255,59,48,0.1);
+      --amber:       #FF9F0A;
+      --t1:          #1D1D1F;
+      --t2:          #6E6E73;
+      --t3:          #AEAEB2;
+      --border:      rgba(0,0,0,0.09);
+      --shadow-sm:   0 1px 8px rgba(0,0,0,0.07);
+      --shadow:      0 2px 20px rgba(0,0,0,0.09);
+      --shadow-lg:   0 8px 40px rgba(0,0,0,0.13);
+      --r:           14px;
+      --r-sm:        10px;
+      --font:        -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--t1);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 300;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      padding: 0 1.75rem;
+      background: rgba(245,245,247,0.82);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .nav-brand {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--t1);
+      margin-right: auto;
+    }
+
+    .nav-brand span { color: var(--blue); }
+
+    .nav-seg {
+      display: flex;
+      background: rgba(0,0,0,0.07);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 2px;
+    }
+
+    .nav-tab {
+      font-family: var(--font);
+      font-size: 0.82rem;
+      font-weight: 500;
+      border: none;
+      background: transparent;
+      padding: 5px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--t2);
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .nav-tab.active {
+      background: #fff;
+      color: var(--t1);
+      box-shadow: 0 1px 5px rgba(0,0,0,0.14);
+    }
+
+    /* ─── VIEWS ─── */
+    .view {
+      display: none;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+      animation: viewIn 0.32s ease;
+    }
+
+    .view.active { display: block; }
+
+    @keyframes viewIn {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── TYPE ─── */
+    .page-title {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      color: var(--t1);
+      margin-bottom: 1.75rem;
+    }
+
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--t2);
+      margin-bottom: 0.75rem;
+    }
+
+    /* ─── STATS ─── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.9rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border-radius: var(--r);
+      padding: 1.1rem 1.4rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .stat-num {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--t1);
+    }
+
+    .stat-lbl {
+      font-size: 0.76rem;
+      font-weight: 500;
+      color: var(--t2);
+      margin-top: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ─── TABS ─── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1.75rem;
+      gap: 0;
+    }
+
+    .tab-btn {
+      font-family: var(--font);
+      font-size: 0.88rem;
+      font-weight: 500;
+      background: none;
+      border: none;
+      padding: 0.65rem 1.25rem;
+      cursor: pointer;
+      color: var(--t2);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover { color: var(--t1); }
+    .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: viewIn 0.22s ease; }
+
+    /* ─── HOUSEHOLD CARDS ─── */
+    .household-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .hcard {
+      background: var(--card);
+      border-radius: var(--r);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+
+    .hcard:hover { box-shadow: var(--shadow); }
+
+    .hcard-head {
+      display: flex;
+      align-items: center;
+      padding: 1rem 1.25rem;
+      gap: 0.9rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1rem;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .hcard-info { flex: 1; min-width: 0; }
+
+    .hcard-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--t1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hcard-meta {
+      font-size: 0.8rem;
+      color: var(--t2);
+      margin-top: 0.15rem;
+    }
+
+    .hcard-right {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-shrink: 0;
+    }
+
+    .pill {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.65rem;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .pill-count  { background: rgba(0,0,0,0.06); color: var(--t2); }
+    .pill-prereg { background: var(--blue-light); color: var(--blue); }
+    .pill-walkin { background: rgba(124,58,237,0.1); color: #7C3AED; }
+    .pill-arrived{ background: var(--green-light); color: #1a7a3a; }
+    .pill-pending{ background: rgba(255,159,10,0.12); color: #8a5a00; }
+
+    .chevron-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--t3);
+      transition: transform 0.25s ease;
+      font-size: 0.75rem;
+    }
+
+    .chevron-icon.open { transform: rotate(90deg); }
+
+    .hcard-body {
+      display: none;
+      border-top: 1px solid var(--border);
+      padding: 0.25rem 1.25rem 1rem;
+      animation: viewIn 0.2s ease;
+    }
+
+    .hcard-body.open { display: block; }
+
+    .student-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 0;
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+      flex-wrap: wrap;
+    }
+
+    .student-row:last-child { border-bottom: none; }
+
+    .s-initial {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--blue-light);
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .s-info { flex: 1; min-width: 140px; }
+
+    .s-name {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--t1);
+    }
+
+    .s-school {
+      font-size: 0.78rem;
+      color: var(--t2);
+      margin-top: 0.1rem;
+    }
+
+    .arrived-time { font-size: 0.75rem; color: #1a7a3a; }
+
+    .hcard-actions {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(0,0,0,0.04);
+      margin-top: 0.25rem;
+    }
+
+    /* ─── FORM SECTIONS ─── */
+    .form-block {
+      background: var(--card);
+      border-radius: var(--r);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 1rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+
+    @media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--t2);
+    }
+
+    input[type="text"],
+    input[type="tel"],
+    input[type="email"],
+    select {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      font-family: var(--font);
+      font-size: 0.95rem;
+      background: rgba(0,0,0,0.04);
+      border: 1.5px solid transparent;
+      border-radius: var(--r-sm);
+      color: var(--t1);
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+      -webkit-appearance: none;
+    }
+
+    input:hover, select:hover { background: rgba(0,0,0,0.055); }
+
+    input:focus, select:focus {
+      outline: none;
+      background: #fff;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(0,113,227,0.14);
+    }
+
+    input.has-error { border-color: var(--red) !important; background: rgba(255,59,48,0.04); }
+    input.has-error:focus { box-shadow: 0 0 0 3px rgba(255,59,48,0.14); }
+
+    .field-err {
+      font-size: 0.75rem;
+      color: var(--red);
+      display: none;
+    }
+
+    .field-err.show { display: block; }
+
+    /* Custom select arrow */
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%236E6E73' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.85rem center;
+      background-size: 10px 6px;
+      padding-right: 2.5rem;
+      cursor: pointer;
+    }
+
+    select:focus { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%230071E3' d='M5 6L0 0h10z'/%3E%3C/svg%3E"); }
+
+    /* ─── CHILD CARDS ─── */
+    .kid-card {
+      background: rgba(0,0,0,0.025);
+      border: 1.5px solid rgba(0,0,0,0.07);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      animation: viewIn 0.2s ease;
+    }
+
+    .kid-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+
+    .kid-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--t2);
+    }
+
+    .remove-kid {
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--red-light);
+      color: var(--red);
+      font-size: 1rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .remove-kid:hover { background: rgba(255,59,48,0.2); }
+
+    /* ─── BUTTONS ─── */
+    .btn {
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 500;
+      padding: 0.65rem 1.4rem;
+      border-radius: 980px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.18s ease;
+      white-space: nowrap;
+    }
+
+    .btn:active { transform: scale(0.96); }
+
+    .btn-primary   { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: #005EC3; box-shadow: 0 4px 16px rgba(0,113,227,0.35); }
+
+    .btn-secondary { background: rgba(0,0,0,0.07); color: var(--t1); }
+    .btn-secondary:hover { background: rgba(0,0,0,0.12); }
+
+    .btn-ghost     { background: none; color: var(--blue); padding-left: 0; padding-right: 0; border-radius: 0; }
+    .btn-ghost:hover { opacity: 0.7; }
+
+    .btn-danger    { background: var(--red-light); color: var(--red); font-size: 0.82rem; padding: 0.42rem 0.9rem; }
+    .btn-danger:hover { background: rgba(255,59,48,0.18); }
+
+    .btn-mark      { background: var(--blue-light); color: var(--blue); font-size: 0.82rem; padding: 0.42rem 0.9rem; }
+    .btn-mark:hover { background: rgba(0,113,227,0.18); }
+
+    .btn-done      { background: var(--green-light); color: #1a7a3a; font-size: 0.82rem; padding: 0.42rem 0.9rem; pointer-events: none; }
+
+    .btn-export    { background: var(--blue-light); color: var(--blue); }
+    .btn-export:hover { background: rgba(0,113,227,0.18); }
+
+    .btn-row { display: flex; gap: 0.65rem; flex-wrap: wrap; align-items: center; margin-top: 1.25rem; }
+
+    .add-kid-btn {
+      width: 100%;
+      padding: 0.85rem;
+      border: 2px dashed rgba(0,113,227,0.28);
+      border-radius: 12px;
+      background: rgba(0,113,227,0.04);
+      color: var(--blue);
+      font-family: var(--font);
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 0.75rem;
+    }
+
+    .add-kid-btn:hover { border-color: rgba(0,113,227,0.55); background: var(--blue-light); }
+
+    /* ─── SEARCH ─── */
+    .search-wrap { position: relative; margin-bottom: 1.5rem; }
+
+    .search-input {
+      width: 100%;
+      padding: 0.78rem 1rem 0.78rem 2.8rem;
+      font-family: var(--font);
+      font-size: 0.95rem;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      color: var(--t1);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.9rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--t3);
+      pointer-events: none;
+      font-size: 1.1rem;
+    }
+
+    /* ─── CHECK-IN CARDS ─── */
+    .ci-card {
+      background: var(--card);
+      border-radius: var(--r);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+      animation: viewIn 0.2s ease;
+    }
+
+    .ci-parent {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.75rem 1.25rem;
+      background: rgba(0,0,0,0.02);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .ci-parent-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--t2);
+    }
+
+    .ci-parent-name {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--t1);
+    }
+
+    .ci-students { padding: 0.4rem 1.25rem 0.75rem; }
+
+    /* ─── HERO ─── */
+    .hero {
+      text-align: center;
+      padding: 3rem 1rem 2.75rem;
+      margin-bottom: 2rem;
+    }
+
+    .hero-eyebrow {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--blue);
+      margin-bottom: 0.85rem;
+    }
+
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 700;
+      letter-spacing: -0.05em;
+      color: var(--t1);
+      line-height: 1.08;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--t2);
+      line-height: 1.55;
+    }
+
+    .walkin-form { max-width: 640px; margin: 0 auto; }
+
+    /* ─── TOASTS ─── */
+    .toast-wrap {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: 0.5rem;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: rgba(29,29,31,0.9);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      color: #fff;
+      padding: 0.7rem 1.3rem;
+      border-radius: 980px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      pointer-events: auto;
+      white-space: nowrap;
+      animation: tIn 0.48s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    }
+
+    .toast.success { background: rgba(21,107,46,0.93); }
+    .toast.error   { background: rgba(185,30,30,0.93); }
+    .toast.out     { animation: tOut 0.24s ease forwards; }
+
+    @keyframes tIn {
+      from { opacity:0; transform: translateY(18px) scale(0.88); }
+      to   { opacity:1; transform: translateY(0)    scale(1); }
+    }
+
+    @keyframes tOut {
+      to { opacity:0; transform: translateY(8px) scale(0.94); }
+    }
+
+    /* ─── MISC ─── */
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+    }
+
+    .empty-icon { font-size: 2.4rem; margin-bottom: 0.65rem; }
+
+    .empty-t {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--t1);
+      margin-bottom: 0.4rem;
+    }
+
+    .empty-s { font-size: 0.88rem; color: var(--t2); }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+    .danger-box {
+      background: rgba(255,59,48,0.05);
+      border: 1px solid rgba(255,59,48,0.18);
+      border-radius: var(--r);
+      padding: 1.4rem 1.5rem;
+    }
+
+    .danger-box p { font-size: 0.88rem; color: var(--t2); margin-bottom: 1rem; }
+
+    .export-btns { display: flex; gap: 0.65rem; flex-wrap: wrap; }
+
+    .note { font-size: 0.85rem; color: var(--t2); line-height: 1.55; margin-bottom: 1.25rem; }
+
+    /* bulk textarea */
+    textarea {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      font-family: var(--font);
+      font-size: 0.88rem;
+      background: rgba(0,0,0,0.04);
+      border: 1.5px solid transparent;
+      border-radius: var(--r-sm);
+      color: var(--t1);
+      min-height: 110px;
+      resize: vertical;
+      transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+
+    textarea:focus {
+      outline: none;
+      background: #fff;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(0,113,227,0.14);
+    }
+
+    @media (max-width: 480px) {
+      .stats-row { grid-template-columns: 1fr 1fr; }
+      .page-title { font-size: 1.7rem; }
+      nav { padding: 0 1rem; }
+      .view { padding: 1.5rem 1rem 3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ NAV ══════════════════ -->
+<nav>
+  <div class="nav-brand">MYC <span>Book Fair</span></div>
+  <div class="nav-seg">
+    <button class="nav-tab active" id="nt-admin"   onclick="showView('admin')">Admin</button>
+    <button class="nav-tab"        id="nt-checkin" onclick="showView('checkin')">Check‑In</button>
+    <button class="nav-tab"        id="nt-walkin"  onclick="showView('walkin')">Walk‑In</button>
+  </div>
+</nav>
+
+<!-- ══════════════════ ADMIN ══════════════════ -->
+<div id="view-admin" class="view active">
+  <div class="page-title">Admin</div>
+  <div class="stats-row" id="admin-stats"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="atb-households" onclick="showAdminTab('households')">Households</button>
+    <button class="tab-btn"        id="atb-add"        onclick="showAdminTab('add')">Add Household</button>
+    <button class="tab-btn"        id="atb-export"     onclick="showAdminTab('export')">Export</button>
+  </div>
+
+  <!-- Tab: Households -->
+  <div id="atp-households" class="tab-panel active">
+    <div id="households-list" class="household-list"></div>
+  </div>
+
+  <!-- Tab: Add Household -->
+  <div id="atp-add" class="tab-panel">
+    <div class="form-block">
+      <div class="section-label">Parent / Guardian</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>First Name *</label>
+          <input type="text" id="ap-fn" placeholder="First name">
+        </div>
+        <div class="form-group">
+          <label>Last Name *</label>
+          <input type="text" id="ap-ln" placeholder="Last name">
+        </div>
+        <div class="form-group">
+          <label>Phone Number *</label>
+          <input type="tel" id="ap-phone" placeholder="(206) 555-0100"
+                 oninput="fmtPhone(this)">
+          <span class="field-err" id="ap-phone-err">Enter a valid phone number.</span>
+        </div>
+        <div class="form-group">
+          <label>Email Address *</label>
+          <input type="email" id="ap-email" placeholder="parent@email.com"
+                 onblur="validateEmail(this, 'ap-email-err')">
+          <span class="field-err" id="ap-email-err">Enter a valid email address.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-block">
+      <div class="section-label">Children</div>
+      <div id="admin-kids-container"></div>
+      <button class="add-kid-btn" onclick="addAdminKid()">＋ Add Another Child</button>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitAdminHousehold()">Register Household</button>
+      <button class="btn btn-secondary" onclick="clearAdminForm()">Clear</button>
+    </div>
+
+    <hr>
+    <div class="section-label" style="margin-bottom:.5rem">Bulk Import</div>
+    <p class="note">One student per line — columns: <strong>StudentFirst, StudentLast, School, Grade, ParentFirst, ParentLast, ParentPhone, ParentEmail</strong> (comma or tab separated). Students with the same parent phone are grouped into one household.</p>
+    <textarea id="bulk-text" placeholder="Maya,Johnson,Lincoln Elementary,4th,Diana,Johnson,(206) 555-0101,diana@email.com"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary"   onclick="bulkImport()">Import</button>
+      <button class="btn btn-secondary" onclick="loadSample()">Load Sample Data</button>
+    </div>
+  </div>
+
+  <!-- Tab: Export -->
+  <div id="atp-export" class="tab-panel">
+    <div class="section-label" style="margin-bottom:.5rem">Download Records</div>
+    <p class="note">Export attendance data as a CSV you can open in Excel or Google Sheets.</p>
+    <div class="export-btns">
+      <button class="btn btn-export" onclick="exportCSV('prereg')">↓ Pre-Registered</button>
+      <button class="btn btn-export" onclick="exportCSV('walkin')">↓ Walk-Ins</button>
+      <button class="btn btn-export" onclick="exportCSV('combined')">↓ Combined</button>
+    </div>
+    <hr>
+    <div class="danger-box">
+      <div class="section-label" style="margin-bottom:.5rem">Danger Zone</div>
+      <p>Permanently deletes all pre-registered and walk-in data stored on this device.</p>
+      <button class="btn btn-danger" style="font-size:.9rem;padding:.6rem 1.3rem" onclick="clearAll()">Clear All Data</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ CHECK-IN ══════════════════ -->
+<div id="view-checkin" class="view">
+  <div class="page-title">Check‑In</div>
+  <div class="stats-row" id="ci-stats"></div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input class="search-input" type="text" id="ci-search"
+           placeholder="Search by student or parent name…"
+           oninput="renderCI()">
+  </div>
+  <div id="ci-results"></div>
+</div>
+
+<!-- ══════════════════ WALK-IN ══════════════════ -->
+<div id="view-walkin" class="view">
+  <div class="hero">
+    <div class="hero-eyebrow">Welcome</div>
+    <h1>MYC Book Fair</h1>
+    <div class="hero-sub">
+      Saturday, April 11, 2026<br>
+      Sunnyside Multi-Service Center
+    </div>
+  </div>
+
+  <div class="walkin-form">
+    <div class="form-block">
+      <div class="section-label">Your Information</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>First Name *</label>
+          <input type="text" id="wp-fn" placeholder="First name">
+        </div>
+        <div class="form-group">
+          <label>Last Name *</label>
+          <input type="text" id="wp-ln" placeholder="Last name">
+        </div>
+        <div class="form-group">
+          <label>Phone Number *</label>
+          <input type="tel" id="wp-phone" placeholder="(206) 555-0100"
+                 oninput="fmtPhone(this)">
+          <span class="field-err" id="wp-phone-err">Enter a valid phone number.</span>
+        </div>
+        <div class="form-group">
+          <label>Email Address *</label>
+          <input type="email" id="wp-email" placeholder="parent@email.com"
+                 onblur="validateEmail(this, 'wp-email-err')">
+          <span class="field-err" id="wp-email-err">Enter a valid email address.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-block">
+      <div class="section-label">Children Checking In</div>
+      <div id="walkin-kids-container"></div>
+      <button class="add-kid-btn" onclick="addWalkinKid()">＋ Add Another Child</button>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:1rem;padding:.85rem" onclick="submitWalkin()">
+      Register &amp; Check In
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════ TOASTS ══════════════════ -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+/* ═══════════════════════════════
+   CONSTANTS & STORAGE
+═══════════════════════════════ */
+const HK = 'myc_households_v3';   // pre-registered households
+const WK = 'myc_walkins_v3';      // walk-in households
+
+function getHouseholds() { try { return JSON.parse(localStorage.getItem(HK)) || []; } catch { return []; } }
+function saveHouseholds(a) { localStorage.setItem(HK, JSON.stringify(a)); }
+
+function getWalkins() { try { return JSON.parse(localStorage.getItem(WK)) || []; } catch { return []; } }
+function saveWalkins(a) { localStorage.setItem(WK, JSON.stringify(a)); }
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+const GRADES = ['Pre-K','Kindergarten','1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th'];
+
+function gradeOpts(sel = '') {
+  return `<option value="">Grade</option>` +
+    GRADES.map(g => `<option value="${g}"${sel===g?' selected':''}>${g}</option>`).join('');
+}
+
+const AVATARS = [
+  'linear-gradient(135deg,#667eea,#764ba2)',
+  'linear-gradient(135deg,#f093fb,#f5576c)',
+  'linear-gradient(135deg,#4facfe,#00f2fe)',
+  'linear-gradient(135deg,#43e97b,#38f9d7)',
+  'linear-gradient(135deg,#fa709a,#fee140)',
+  'linear-gradient(135deg,#a18cd1,#fbc2eb)',
+  'linear-gradient(135deg,#fd7043,#ff8a65)',
+  'linear-gradient(135deg,#26c6da,#00acc1)',
+];
+
+function avatarGrad(name) {
+  const i = (name || 'A').charCodeAt(0) % AVATARS.length;
+  return AVATARS[i];
+}
+
+/* ═══════════════════════════════
+   NAVIGATION
+═══════════════════════════════ */
+function showView(v) {
+  ['admin','checkin','walkin'].forEach(n => {
+    document.getElementById('view-'+n).classList.toggle('active', n===v);
+    document.getElementById('nt-'+n).classList.toggle('active', n===v);
+  });
+  if (v === 'admin')   { renderAdminStats(); renderHouseholds(); }
+  if (v === 'checkin') { renderCIStats(); renderCI(); }
+}
+
+function showAdminTab(t) {
+  ['households','add','export'].forEach(n => {
+    document.getElementById('atp-'+n).classList.toggle('active', n===t);
+    document.getElementById('atb-'+n).classList.toggle('active', n===t);
+  });
+  if (t === 'households') renderHouseholds();
+}
+
+/* ═══════════════════════════════
+   ADMIN STATS
+═══════════════════════════════ */
+function renderAdminStats() {
+  const hh  = getHouseholds();
+  const wk  = getWalkins();
+  const sts = hh.flatMap(h => h.students);
+  const wks = wk.flatMap(h => h.students);
+  const chk = sts.filter(s => s.arrived).length;
+
+  document.getElementById('admin-stats').innerHTML =
+    sc(sts.length, 'Pre-Registered') +
+    sc(chk,        'Checked In')     +
+    sc(wks.length, 'Walk-Ins');
+}
+
+function sc(n, l) {
+  return `<div class="stat-card"><div class="stat-num">${n}</div><div class="stat-lbl">${l}</div></div>`;
+}
+
+/* ═══════════════════════════════
+   ADMIN HOUSEHOLDS LIST
+═══════════════════════════════ */
+function renderHouseholds() {
+  const hh = getHouseholds();
+  const wk = getWalkins();
+  const el = document.getElementById('households-list');
+
+  if (!hh.length && !wk.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📋</div>
+      <div class="empty-t">No households yet</div>
+      <div class="empty-s">Add pre-registered families in the <em>Add Household</em> tab.</div>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  hh.forEach(h => {
+    const init  = (h.parent.firstName[0]||'?').toUpperCase();
+    const total = h.students.length;
+    const arrv  = h.students.filter(s=>s.arrived).length;
+    const grad  = avatarGrad(h.parent.firstName);
+
+    html += `
+    <div class="hcard">
+      <div class="hcard-head" onclick="toggleHousehold('hb-${h.id}', 'ch-${h.id}')">
+        <div class="avatar" style="background:${grad}">${init}</div>
+        <div class="hcard-info">
+          <div class="hcard-name">${esc(h.parent.firstName)} ${esc(h.parent.lastName)} Household</div>
+          <div class="hcard-meta">${esc(h.parent.phone)} &nbsp;·&nbsp; ${esc(h.parent.email)}</div>
+        </div>
+        <div class="hcard-right">
+          <span class="pill pill-count">${total} student${total!==1?'s':''}</span>
+          <span class="pill pill-prereg">Pre-registered</span>
+          ${arrv===total && total>0 ? `<span class="pill pill-arrived">All Arrived</span>` : arrv>0 ? `<span class="pill pill-pending">${arrv}/${total} Arrived</span>` : ''}
+          <div class="chevron-icon" id="ch-${h.id}">›</div>
+        </div>
+      </div>
+      <div class="hcard-body" id="hb-${h.id}">
+        ${h.students.map(s => `
+        <div class="student-row">
+          <div class="s-initial">${(s.firstName[0]||'?').toUpperCase()}</div>
+          <div class="s-info">
+            <div class="s-name">${esc(s.firstName)} ${esc(s.lastName)}</div>
+            <div class="s-school">${esc(s.school||'—')} &nbsp;·&nbsp; ${esc(s.grade||'—')}
+              ${s.arrivedAt ? `<br><span class="arrived-time">✓ Arrived ${fmtTime(s.arrivedAt)}</span>` : ''}
+            </div>
+          </div>
+          <span class="pill ${s.arrived?'pill-arrived':'pill-pending'}">${s.arrived?'✓ Arrived':'Pending'}</span>
+        </div>`).join('')}
+        <div class="hcard-actions">
+          <button class="btn btn-danger" onclick="removeHousehold('${h.id}')">Remove Household</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  wk.forEach(h => {
+    const init = (h.parent.firstName[0]||'?').toUpperCase();
+    const grad = avatarGrad(h.parent.firstName);
+    const total = h.students.length;
+
+    html += `
+    <div class="hcard">
+      <div class="hcard-head" onclick="toggleHousehold('wb-${h.id}', 'wc-${h.id}')">
+        <div class="avatar" style="background:${grad}">${init}</div>
+        <div class="hcard-info">
+          <div class="hcard-name">${esc(h.parent.firstName)} ${esc(h.parent.lastName)} Household</div>
+          <div class="hcard-meta">${esc(h.parent.phone)} &nbsp;·&nbsp; ${esc(h.parent.email)} &nbsp;·&nbsp; Registered ${fmtTime(h.time)}</div>
+        </div>
+        <div class="hcard-right">
+          <span class="pill pill-count">${total} student${total!==1?'s':''}</span>
+          <span class="pill pill-walkin">Walk-in</span>
+          <span class="pill pill-arrived">✓ Arrived</span>
+          <div class="chevron-icon" id="wc-${h.id}">›</div>
+        </div>
+      </div>
+      <div class="hcard-body" id="wb-${h.id}">
+        ${h.students.map(s => `
+        <div class="student-row">
+          <div class="s-initial">${(s.firstName[0]||'?').toUpperCase()}</div>
+          <div class="s-info">
+            <div class="s-name">${esc(s.firstName)} ${esc(s.lastName)}</div>
+            <div class="s-school">${esc(s.school||'—')} &nbsp;·&nbsp; ${esc(s.grade||'—')}</div>
+          </div>
+          <span class="pill pill-arrived">✓ Arrived</span>
+        </div>`).join('')}
+        <div class="hcard-actions">
+          <button class="btn btn-danger" onclick="removeWalkin('${h.id}')">Remove Entry</button>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+function toggleHousehold(bodyId, chevId) {
+  const body = document.getElementById(bodyId);
+  const chev = document.getElementById(chevId);
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  if (chev) chev.classList.toggle('open', open);
+}
+
+function removeHousehold(id) {
+  if (!confirm('Remove this household and all their students?')) return;
+  saveHouseholds(getHouseholds().filter(h => h.id !== id));
+  renderAdminStats(); renderHouseholds();
+  toast('Household removed.', 'info');
+}
+
+function removeWalkin(id) {
+  if (!confirm('Remove this walk-in entry?')) return;
+  saveWalkins(getWalkins().filter(h => h.id !== id));
+  renderAdminStats(); renderHouseholds();
+  toast('Walk-in removed.', 'info');
+}
+
+/* ═══════════════════════════════
+   ADMIN — ADD HOUSEHOLD FORM
+═══════════════════════════════ */
+let adminKids = [];
+
+function initAdminKids() {
+  adminKids = [{ id: uid() }];
+  renderAdminKids();
+}
+
+function addAdminKid() {
+  adminKids.push({ id: uid() });
+  renderAdminKids();
+}
+
+function removeAdminKid(id) {
+  if (adminKids.length === 1) return;
+  adminKids = adminKids.filter(k => k.id !== id);
+  renderAdminKids();
+}
+
+function renderAdminKids() {
+  document.getElementById('admin-kids-container').innerHTML =
+    adminKids.map((k, i) => kidCard(k.id, i, 'ak', adminKids.length > 1)).join('');
+}
+
+function kidCard(id, idx, pfx, removable) {
+  return `
+  <div class="kid-card">
+    <div class="kid-card-head">
+      <span class="kid-label">Child ${idx + 1}</span>
+      ${removable ? `<button class="remove-kid" onclick="${pfx==='ak'?'removeAdminKid':'removeWalkinKid'}('${id}')" type="button" title="Remove">×</button>` : ''}
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>First Name *</label>
+        <input type="text" id="${pfx}-fn-${id}" placeholder="First name">
+      </div>
+      <div class="form-group">
+        <label>Last Name *</label>
+        <input type="text" id="${pfx}-ln-${id}" placeholder="Last name">
+      </div>
+      <div class="form-group">
+        <label>School</label>
+        <input type="text" id="${pfx}-school-${id}" placeholder="School name">
+      </div>
+      <div class="form-group">
+        <label>Grade</label>
+        <select id="${pfx}-grade-${id}">${gradeOpts()}</select>
+      </div>
+    </div>
+  </div>`;
+}
+
+function submitAdminHousehold() {
+  const pFn    = v('ap-fn');
+  const pLn    = v('ap-ln');
+  const pPhone = v('ap-phone');
+  const pEmail = v('ap-email');
+
+  let ok = true;
+  if (!pFn)    { flash('ap-fn');    ok = false; }
+  if (!pLn)    { flash('ap-ln');    ok = false; }
+  if (!pPhone || pPhone.replace(/\D/g,'').length < 10) {
+    flash('ap-phone'); showErr('ap-phone-err'); ok = false;
+  }
+  if (!pEmail || !validEmail(pEmail)) {
+    flash('ap-email'); showErr('ap-email-err'); ok = false;
+  }
+  if (!ok) { toast('Please fix the highlighted fields.', 'error'); return; }
+
+  // Validate kids
+  const students = [];
+  for (const k of adminKids) {
+    const fn = v(`ak-fn-${k.id}`);
+    const ln = v(`ak-ln-${k.id}`);
+    if (!fn) { flash(`ak-fn-${k.id}`); toast('Each child needs a first name.', 'error'); return; }
+    if (!ln) { flash(`ak-ln-${k.id}`); toast('Each child needs a last name.', 'error'); return; }
+    students.push({
+      id: uid(),
+      firstName: fn,
+      lastName: ln,
+      school: v(`ak-school-${k.id}`),
+      grade: v(`ak-grade-${k.id}`),
+      arrived: false,
+      arrivedAt: null
+    });
+  }
+
+  const household = {
+    id: uid(),
+    parent: { firstName: pFn, lastName: pLn, phone: pPhone, email: pEmail },
+    students,
+    createdAt: new Date().toISOString()
+  };
+
+  const hh = getHouseholds();
+  hh.push(household);
+  saveHouseholds(hh);
+
+  clearAdminForm();
+  renderAdminStats();
+  toast(`${pFn} ${pLn} household registered!`, 'success');
+}
+
+function clearAdminForm() {
+  ['ap-fn','ap-ln','ap-phone','ap-email'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('has-error'); }
+  });
+  ['ap-phone-err','ap-email-err'].forEach(id => hideErr(id));
+  initAdminKids();
+}
+
+/* ═══════════════════════════════
+   ADMIN — BULK IMPORT
+═══════════════════════════════ */
+function bulkImport() {
+  const raw = document.getElementById('bulk-text').value.trim();
+  if (!raw) { toast('Nothing to import.', 'error'); return; }
+
+  const hh = getHouseholds();
+  const byPhone = {};
+  hh.forEach(h => { byPhone[cleanPhone(h.parent.phone)] = h; });
+
+  let count = 0;
+  raw.split('\n').forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    const p = line.includes('\t') ? line.split('\t') : line.split(',');
+    const [sfn, sln, school, grade, pfn, pln, phone, email] = p.map(x => x.trim());
+    if (!sfn || !sfn) return;
+
+    const key = cleanPhone(phone||'');
+    if (key && byPhone[key]) {
+      byPhone[key].students.push({ id: uid(), firstName: sfn, lastName: sln||'',
+        school: school||'', grade: grade||'', arrived: false, arrivedAt: null });
+    } else {
+      const h = { id: uid(), parent: { firstName: pfn||'', lastName: pln||'',
+        phone: fmtPhoneStr(phone||''), email: email||'' }, students: [
+        { id: uid(), firstName: sfn, lastName: sln||'', school: school||'',
+          grade: grade||'', arrived: false, arrivedAt: null }
+      ], createdAt: new Date().toISOString() };
+      hh.push(h);
+      if (key) byPhone[key] = h;
+    }
+    count++;
+  });
+
+  saveHouseholds(hh);
+  document.getElementById('bulk-text').value = '';
+  renderAdminStats();
+  toast(`${count} student${count!==1?'s':''} imported!`, 'success');
+}
+
+function loadSample() {
+  const data = [
+    ['Maya','Johnson','Lincoln Elementary','4th','Diana','Johnson','(206) 555-0101','diana.j@email.com'],
+    ['Aiden','Johnson','Lincoln Elementary','2nd','Diana','Johnson','(206) 555-0101','diana.j@email.com'],
+    ['Ethan','Park','Washington Middle','6th','Sandra','Park','(206) 555-0102','s.park@email.com'],
+    ['Amara','Osei','Lincoln Elementary','3rd','Kwame','Osei','(206) 555-0103','k.osei@email.com'],
+    ['Lucas','Reyes','Sunnyside Elementary','K','Maria','Reyes','(206) 555-0104','m.reyes@email.com'],
+    ['Sofia','Reyes','Sunnyside Elementary','2nd','Maria','Reyes','(206) 555-0104','m.reyes@email.com'],
+    ['Priya','Sharma','Washington Middle','7th','Anita','Sharma','(206) 555-0105','a.sharma@email.com'],
+    ['Jordan','Lee','Lincoln Elementary','5th','Chris','Lee','(206) 555-0106','c.lee@email.com'],
+    ['Noah','Williams','Washington Middle','8th','James','Williams','(206) 555-0107','j.williams@email.com'],
+    ['Chloe','Nguyen','Lincoln Elementary','1st','Lan','Nguyen','(206) 555-0108','lan.nguyen@email.com'],
+  ];
+
+  const hh = getHouseholds();
+  const byPhone = {};
+  hh.forEach(h => { byPhone[cleanPhone(h.parent.phone)] = h; });
+
+  data.forEach(([sfn,sln,school,grade,pfn,pln,phone,email]) => {
+    const key = cleanPhone(phone);
+    if (key && byPhone[key]) {
+      byPhone[key].students.push({ id: uid(), firstName: sfn, lastName: sln,
+        school, grade, arrived: false, arrivedAt: null });
+    } else {
+      const h = { id: uid(), parent: { firstName: pfn, lastName: pln, phone, email },
+        students: [{ id: uid(), firstName: sfn, lastName: sln, school, grade, arrived: false, arrivedAt: null }],
+        createdAt: new Date().toISOString() };
+      hh.push(h);
+      if (key) byPhone[key] = h;
+    }
+  });
+
+  saveHouseholds(hh);
+  renderAdminStats();
+  toast('Sample data loaded!', 'success');
+}
+
+/* ═══════════════════════════════
+   CHECK-IN VIEW
+═══════════════════════════════ */
+function renderCIStats() {
+  const sts = getHouseholds().flatMap(h => h.students);
+  const arrv = sts.filter(s => s.arrived).length;
+  document.getElementById('ci-stats').innerHTML =
+    sc(sts.length, 'Registered') + sc(arrv, 'Arrived');
+}
+
+function renderCI() {
+  const q   = (document.getElementById('ci-search')?.value || '').toLowerCase().trim();
+  const hh  = getHouseholds();
+  const el  = document.getElementById('ci-results');
+
+  let matches = hh.filter(h =>
+    !q ||
+    `${h.parent.firstName} ${h.parent.lastName}`.toLowerCase().includes(q) ||
+    h.students.some(s => `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+                         (s.school||'').toLowerCase().includes(q))
+  );
+
+  if (!matches.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">${q ? '🔍' : '📋'}</div>
+      <div class="empty-t">${q ? 'No results found' : 'No pre-registered students'}</div>
+      <div class="empty-s">${q ? 'Try a different name or spelling.' : 'Add families in Admin → Add Household.'}</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = matches.map(h => `
+    <div class="ci-card">
+      <div class="ci-parent">
+        <div class="ci-parent-label">Parent:</div>
+        <div class="ci-parent-name">${esc(h.parent.firstName)} ${esc(h.parent.lastName)}</div>
+        <div style="margin-left:auto;font-size:.8rem;color:var(--t2)">${esc(h.parent.phone)}</div>
+      </div>
+      <div class="ci-students">
+        ${h.students.map(s => `
+        <div class="student-row">
+          <div class="s-initial">${(s.firstName[0]||'?').toUpperCase()}</div>
+          <div class="s-info">
+            <div class="s-name">${esc(s.firstName)} ${esc(s.lastName)}</div>
+            <div class="s-school">${esc(s.school||'—')} &nbsp;·&nbsp; ${esc(s.grade||'—')}
+              ${s.arrivedAt ? `<br><span class="arrived-time">✓ Arrived ${fmtTime(s.arrivedAt)}</span>` : ''}
+            </div>
+          </div>
+          <span class="pill ${s.arrived?'pill-arrived':'pill-pending'}">${s.arrived?'✓ Arrived':'Pending'}</span>
+          ${s.arrived
+            ? `<button class="btn btn-done">✓ Checked In</button>`
+            : `<button class="btn btn-mark" onclick="markArrived('${h.id}','${s.id}')">Mark Arrived</button>`}
+        </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function markArrived(hid, sid) {
+  const hh = getHouseholds();
+  const h  = hh.find(x => x.id === hid);
+  if (!h) return;
+  const s = h.students.find(x => x.id === sid);
+  if (!s || s.arrived) return;
+  s.arrived   = true;
+  s.arrivedAt = new Date().toISOString();
+  saveHouseholds(hh);
+  renderCIStats();
+  renderCI();
+  toast(`${s.firstName} ${s.lastName} checked in! ✓`, 'success');
+}
+
+/* ═══════════════════════════════
+   WALK-IN VIEW
+═══════════════════════════════ */
+let walkinKids = [];
+
+function initWalkinKids() {
+  walkinKids = [{ id: uid() }];
+  renderWalkinKids();
+}
+
+function addWalkinKid() {
+  walkinKids.push({ id: uid() });
+  renderWalkinKids();
+}
+
+function removeWalkinKid(id) {
+  if (walkinKids.length === 1) return;
+  walkinKids = walkinKids.filter(k => k.id !== id);
+  renderWalkinKids();
+}
+
+function renderWalkinKids() {
+  document.getElementById('walkin-kids-container').innerHTML =
+    walkinKids.map((k, i) => kidCard(k.id, i, 'wk', walkinKids.length > 1)).join('');
+}
+
+function submitWalkin() {
+  const pFn    = v('wp-fn');
+  const pLn    = v('wp-ln');
+  const pPhone = v('wp-phone');
+  const pEmail = v('wp-email');
+
+  let ok = true;
+  if (!pFn)    { flash('wp-fn');    ok = false; }
+  if (!pLn)    { flash('wp-ln');    ok = false; }
+  if (!pPhone || pPhone.replace(/\D/g,'').length < 10) {
+    flash('wp-phone'); showErr('wp-phone-err'); ok = false;
+  }
+  if (!pEmail || !validEmail(pEmail)) {
+    flash('wp-email'); showErr('wp-email-err'); ok = false;
+  }
+  if (!ok) { toast('Please fill in all required fields.', 'error'); return; }
+
+  const students = [];
+  for (const k of walkinKids) {
+    const fn = v(`wk-fn-${k.id}`);
+    const ln = v(`wk-ln-${k.id}`);
+    if (!fn) { flash(`wk-fn-${k.id}`); toast("Each child needs a first name.", 'error'); return; }
+    if (!ln) { flash(`wk-ln-${k.id}`); toast("Each child needs a last name.", 'error'); return; }
+    students.push({
+      id: uid(), firstName: fn, lastName: ln,
+      school: v(`wk-school-${k.id}`),
+      grade:  v(`wk-grade-${k.id}`)
+    });
+  }
+
+  const entry = {
+    id: uid(),
+    parent: { firstName: pFn, lastName: pLn, phone: pPhone, email: pEmail },
+    students,
+    time: new Date().toISOString()
+  };
+
+  const wk = getWalkins();
+  wk.push(entry);
+  saveWalkins(wk);
+
+  // Clear form
+  ['wp-fn','wp-ln','wp-phone','wp-email'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('has-error'); }
+  });
+  ['wp-phone-err','wp-email-err'].forEach(id => hideErr(id));
+  initWalkinKids();
+
+  const names = students.map(s => s.firstName).join(', ');
+  toast(`Welcome, ${names}! You're checked in. ✓`, 'success');
+}
+
+/* ═══════════════════════════════
+   EXPORT
+═══════════════════════════════ */
+function exportCSV(type) {
+  const hh = getHouseholds();
+  const wk = getWalkins();
+  let csv = '', fn = '';
+
+  if (type === 'prereg') {
+    csv = 'Parent First,Parent Last,Parent Phone,Parent Email,Student First,Student Last,School,Grade,Arrived,Arrived At\n';
+    hh.forEach(h => h.students.forEach(s => {
+      csv += row([h.parent.firstName, h.parent.lastName, h.parent.phone, h.parent.email,
+                  s.firstName, s.lastName, s.school, s.grade,
+                  s.arrived ? 'Yes' : 'No', s.arrivedAt ? fmtTime(s.arrivedAt) : '']);
+    }));
+    fn = 'myc-preregistered.csv';
+  } else if (type === 'walkin') {
+    csv = 'Parent First,Parent Last,Parent Phone,Parent Email,Student First,Student Last,School,Grade,Registered At\n';
+    wk.forEach(h => h.students.forEach(s => {
+      csv += row([h.parent.firstName, h.parent.lastName, h.parent.phone, h.parent.email,
+                  s.firstName, s.lastName, s.school, s.grade, fmtTime(h.time)]);
+    }));
+    fn = 'myc-walkins.csv';
+  } else {
+    csv = 'Type,Parent First,Parent Last,Parent Phone,Parent Email,Student First,Student Last,School,Grade,Arrived,Time\n';
+    hh.forEach(h => h.students.forEach(s => {
+      csv += row(['Pre-registered', h.parent.firstName, h.parent.lastName, h.parent.phone, h.parent.email,
+                  s.firstName, s.lastName, s.school, s.grade,
+                  s.arrived ? 'Yes' : 'No', s.arrivedAt ? fmtTime(s.arrivedAt) : '']);
+    }));
+    wk.forEach(h => h.students.forEach(s => {
+      csv += row(['Walk-in', h.parent.firstName, h.parent.lastName, h.parent.phone, h.parent.email,
+                  s.firstName, s.lastName, s.school, s.grade, 'Yes', fmtTime(h.time)]);
+    }));
+    fn = 'myc-combined.csv';
+  }
+
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: fn
+  });
+  a.click();
+  toast('Downloading…', 'info');
+}
+
+function row(cells) {
+  return cells.map(c => {
+    const s = String(c ?? '');
+    return /[,"\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(',') + '\n';
+}
+
+function clearAll() {
+  if (!confirm('Permanently delete ALL pre-registered and walk-in data?')) return;
+  if (!confirm('Are you absolutely sure? This cannot be undone.')) return;
+  localStorage.removeItem(HK);
+  localStorage.removeItem(WK);
+  renderAdminStats(); renderHouseholds();
+  toast('All data cleared.', 'info');
+}
+
+/* ═══════════════════════════════
+   PHONE & EMAIL HELPERS
+═══════════════════════════════ */
+function fmtPhone(input) {
+  let d = input.value.replace(/\D/g, '').slice(0, 10);
+  let out = '';
+  if (d.length > 6)      out = `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  else if (d.length > 3) out = `(${d.slice(0,3)}) ${d.slice(3)}`;
+  else if (d.length > 0) out = `(${d}`;
+  input.value = out;
+  input.classList.remove('has-error');
+  const errId = input.id.replace('-phone', '-phone-err');
+  hideErr(errId);
+}
+
+function fmtPhoneStr(s) {
+  let d = s.replace(/\D/g,'').slice(0,10);
+  if (d.length === 10) return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  return s;
+}
+
+function cleanPhone(s) { return s.replace(/\D/g,''); }
+
+function validateEmail(input, errId) {
+  if (!input.value.trim()) return;
+  if (!validEmail(input.value.trim())) {
+    input.classList.add('has-error');
+    showErr(errId);
+  } else {
+    input.classList.remove('has-error');
+    hideErr(errId);
+  }
+}
+
+function validEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e); }
+
+/* ═══════════════════════════════
+   TOAST
+═══════════════════════════════ */
+function toast(msg, type = 'success') {
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 250);
+  }, 3000);
+}
+
+/* ═══════════════════════════════
+   MISC HELPERS
+═══════════════════════════════ */
+function v(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
+
+function flash(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('has-error');
+  el.addEventListener('input', () => { el.classList.remove('has-error'); }, { once: true });
+}
+
+function showErr(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('show');
+}
+
+function hideErr(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('show');
+}
+
+/* ═══════════════════════════════
+   INIT
+═══════════════════════════════ */
+initAdminKids();
+initWalkinKids();
+renderAdminStats();
+renderHouseholds();
+</script>
+</body>
+</html>
