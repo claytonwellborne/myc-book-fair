@@ -40,6 +40,10 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* ─── KIOSK MODE ─── */
+    body.kiosk nav { display: none; }
+    body.kiosk #view-walkin { padding-top: 1.5rem; }
+
     /* ─── NAV ─── */
     nav {
       position: sticky; top: 0; z-index: 300;
@@ -853,6 +857,13 @@ function initLocalFallback() {
   try { households = JSON.parse(localStorage.getItem('myc_hh_fb') || '[]'); } catch { households = []; }
   try { walkins    = JSON.parse(localStorage.getItem('myc_wk_fb') || '[]'); } catch { walkins = []; }
   refreshDataViews();
+}
+
+/* ─── Kiosk mode: ?walkin in URL → walk-in only, no nav ─── */
+const KIOSK_MODE = new URLSearchParams(location.search).has('walkin');
+if (KIOSK_MODE) {
+  document.body.classList.add('kiosk');
+  showView('walkin');
 }
 
 function refreshDataViews() {
