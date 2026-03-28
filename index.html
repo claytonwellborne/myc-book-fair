@@ -1725,8 +1725,19 @@ function setBookStatus(msg) {
   if (el) el.textContent = msg;
 }
 
+function inferGradeLevel(categories) {
+  const c = categories.join(' ').toLowerCase();
+  if (c.includes('picture book') || c.includes('board book') || c.includes('baby'))  return 'PreK–K';
+  if (c.includes('early reader') || c.includes('beginning reader'))                   return 'Grades K–2';
+  if (c.includes('middle grade'))                                                      return 'Grades 3–7';
+  if (c.includes('young adult') || c.includes('teen'))                                return 'Grades 6–12';
+  if (c.includes('juvenile'))                                                          return 'Grades K–5';
+  if (c.includes('children'))                                                          return 'Grades K–8';
+  return '';
+}
+
 async function lookupISBN() {
-  const raw = document.getElementById('br-isbn')?.value || '';
+  const raw  = document.getElementById('br-isbn')?.value || '';
   const isbn = raw.replace(/[^0-9Xx]/g,'').toUpperCase();
   if (isbn.length < 10) { setBookStatus('Enter a valid ISBN (10 or 13 digits).'); return; }
 
@@ -1739,51 +1750,76 @@ async function lookupISBN() {
   document.getElementById('br-preview').innerHTML = '';
 
   try {
-    const res  = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+    const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
     const data = await res.json();
-    const info = data[`ISBN:${isbn}`];
+    const vol  = data.items?.[0]?.volumeInfo;
 
-    if (!info) {
-      setBookStatus('Book not found — enter details below to add it manually.');
+    if (!vol) {
+      setBookStatus('Book not found — enter details below to add manually.');
       showManualBookForm(isbn);
       return;
     }
 
-    const cover = info.cover?.medium || info.cover?.small ||
-                  `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
+    const cover = (vol.imageLinks?.thumbnail || vol.imageLinks?.smallThumbnail || '')
+                  .replace(/^http:/, 'https:')
+                  .replace('zoom=1', 'zoom=2'); // request slightly larger image
+
+    const rawDesc   = vol.description || '';
+    const description = rawDesc.length > 300 ? rawDesc.slice(0, 297) + '…' : rawDesc;
+    const gradeLevel  = inferGradeLevel(vol.categories || []);
 
     pendingBook = {
       isbn,
-      title:     info.title || 'Unknown Title',
-      authors:   (info.authors   || []).map(a => a.name).join(', ') || 'Unknown Author',
-      publisher: (info.publishers|| []).map(p => p.name).join(', ') || '',
-      year:      info.publish_date || '',
-      cover
+      title:       vol.title || 'Unknown Title',
+      authors:     (vol.authors || []).join(', ') || 'Unknown Author',
+      publisher:   vol.publisher || '',
+      year:        (vol.publishedDate || '').slice(0, 4),
+      cover,
+      description,
+      gradeLevel
     };
 
     setBookStatus('');
-    showBookPreview(pendingBook, true);
+    showBookPreview(pendingBook);
   } catch {
     setBookStatus('Error looking up book — check your connection.');
   }
 }
 
-function showBookPreview(book, withCover) {
+function showBookPreview(book) {
   const el = document.getElementById('br-preview');
-  const coverHtml = withCover
+
+  const coverHtml = book.cover
     ? `<img src="${esc(book.cover)}" class="book-preview-cover"
             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
        <div class="book-no-cover" style="display:none">📚</div>`
     : `<div class="book-no-cover">📚</div>`;
 
+  const metaParts = [book.publisher, book.year].filter(Boolean);
+  const gradeHtml = book.gradeLevel
+    ? `<span style="display:inline-block;margin-top:0.3rem;font-size:0.76rem;font-weight:600;
+                    background:var(--blue-lt);color:var(--blue);padding:2px 8px;border-radius:20px">
+         ${esc(book.gradeLevel)}</span>`
+    : '';
+  const descHtml = book.description
+    ? `<div style="font-size:0.81rem;color:var(--t2);margin-top:0.5rem;line-height:1.5">
+         ${esc(book.description)}</div>`
+    : '';
+
   el.innerHTML = `
-    <div class="book-preview">
+    <div class="book-preview" style="align-items:flex-start">
       ${coverHtml}
       <div class="book-preview-info">
         <div class="book-preview-title">${esc(book.title)}</div>
         <div class="book-preview-author">${esc(book.authors)}</div>
-        <div class="book-preview-meta">${[book.publisher, book.year].filter(Boolean).join(' · ')}${book.publisher||book.year?'<br>':''}ISBN: ${esc(book.isbn)}</div>
+        <div class="book-preview-meta">${metaParts.join(' · ')}${metaParts.length ? '<br>' : ''}ISBN: ${esc(book.isbn)}</div>
+        ${gradeHtml}
+        ${descHtml}
       </div>
+    </div>
+    <div class="form-group" style="margin:0.75rem 0">
+      <label>How many copies?</label>
+      <input type="number" id="br-qty" value="1" min="1" max="999" style="max-width:110px">
     </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="commitBook()">Add to Registry</button>
   `;
@@ -1798,6 +1834,10 @@ function showManualBookForm(isbn) {
         <div class="form-group"><label>Author</label><input type="text" id="br-m-author" placeholder="Author name"></div>
       </div>
     </div>
+    <div class="form-group" style="margin-bottom:.75rem">
+      <label>How many copies?</label>
+      <input type="number" id="br-qty" value="1" min="1" max="999" style="max-width:110px">
+    </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="commitManualBook('${esc(isbn)}')">Add to Registry</button>
   `;
 }
@@ -1805,16 +1845,17 @@ function showManualBookForm(isbn) {
 function commitManualBook(isbn) {
   pendingBook = {
     isbn,
-    title:   (document.getElementById('br-m-title')?.value.trim()  || 'Unknown Title'),
-    authors: (document.getElementById('br-m-author')?.value.trim() || ''),
-    publisher: '', year: '', cover: ''
+    title:       document.getElementById('br-m-title')?.value.trim()  || 'Unknown Title',
+    authors:     document.getElementById('br-m-author')?.value.trim() || '',
+    publisher:   '', year: '', cover: '', description: '', gradeLevel: ''
   };
   commitBook();
 }
 
 function commitBook() {
   if (!pendingBook) return;
-  const book = { ...pendingBook, addedAt: new Date().toISOString() };
+  const qty  = Math.max(1, parseInt(document.getElementById('br-qty')?.value || '1', 10) || 1);
+  const book = { ...pendingBook, quantity: qty, addedAt: new Date().toISOString() };
 
   if (db) {
     db.ref(`books/${book.isbn}`).set(book);
@@ -1847,9 +1888,12 @@ function renderBooks() {
   const list = document.getElementById('br-list');
   if (!list) return;
 
+  const totalCopies = books.reduce((s, b) => s + (b.quantity || 1), 0);
   const lbl = document.getElementById('br-count-label');
   const exp = document.getElementById('br-export-btn');
-  if (lbl) lbl.textContent = `${books.length} Book${books.length !== 1 ? 's' : ''}`;
+  if (lbl) lbl.textContent = books.length
+    ? `${books.length} Title${books.length !== 1 ? 's' : ''} · ${totalCopies} Total Copies`
+    : '0 Books';
   if (exp) exp.style.display = books.length ? '' : 'none';
 
   if (!books.length) {
@@ -1868,13 +1912,28 @@ function renderBooks() {
               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
          <div class="book-card-no-cover" style="display:none">📚</div>`
       : `<div class="book-card-no-cover">📚</div>`;
+
+    const gradeHtml = b.gradeLevel
+      ? `<span style="font-size:0.7rem;font-weight:600;background:var(--blue-lt);color:var(--blue);
+                      padding:1px 7px;border-radius:20px;margin-left:4px">${esc(b.gradeLevel)}</span>`
+      : '';
+    const qtyHtml = (b.quantity && b.quantity > 1)
+      ? `<span style="font-size:0.7rem;color:var(--t2);margin-left:4px">${b.quantity} copies</span>`
+      : '';
+    const descHtml = b.description
+      ? `<div style="font-size:0.76rem;color:var(--t2);margin-top:0.2rem;line-height:1.45;
+                     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+           ${esc(b.description)}</div>`
+      : '';
+
     return `
-      <div class="book-card">
+      <div class="book-card" style="align-items:flex-start">
         ${coverHtml}
         <div class="book-card-info">
-          <div class="book-card-title">${esc(b.title)}</div>
-          <div class="book-card-author">${esc(b.authors)}</div>
+          <div class="book-card-title">${esc(b.title)}${qtyHtml}</div>
+          <div class="book-card-author">${esc(b.authors)}${gradeHtml}</div>
           <div class="book-card-isbn">ISBN ${esc(b.isbn)}</div>
+          ${descHtml}
         </div>
         <button class="book-card-del" onclick="removeBook('${esc(b.isbn)}')" title="Remove">✕</button>
       </div>`;
@@ -1883,9 +1942,10 @@ function renderBooks() {
 
 function exportBooksCSV() {
   if (!books.length) { toast('No books to export.', 'info'); return; }
-  let csv = 'ISBN,Title,Author(s),Publisher,Year,Added At\n';
+  let csv = 'ISBN,Title,Author(s),Publisher,Year,Grade Level,Copies,Description,Added At\n';
   books.forEach(b => {
-    csv += row([b.isbn, b.title, b.authors, b.publisher||'', b.year||'', b.addedAt||'']);
+    csv += row([b.isbn, b.title, b.authors, b.publisher||'', b.year||'',
+                b.gradeLevel||'', b.quantity||1, b.description||'', b.addedAt||'']);
   });
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
