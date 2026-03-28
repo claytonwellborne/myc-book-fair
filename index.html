@@ -8,6 +8,8 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <!-- Barcode/QR scanner -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
     :root {
@@ -43,6 +45,66 @@
     /* ─── KIOSK MODE ─── */
     body.kiosk nav { display: none; }
     body.kiosk #view-walkin { padding-top: 1.5rem; }
+    body.bookregistry nav { display: none; }
+    body.bookregistry #view-bookregistry { padding-top: 1.5rem; }
+
+    /* ─── BOOK REGISTRY ─── */
+    .book-lookup-bar { display:flex; gap:0.6rem; margin-bottom:0.75rem; }
+    .book-lookup-bar input { flex:1; }
+    .scanner-wrap {
+      background:#000; border-radius:var(--r); overflow:hidden;
+      margin-bottom:0.9rem; position:relative; max-width:100%;
+    }
+    #br-reader { width:100%; }
+    .scanner-close-btn {
+      position:absolute; top:8px; right:8px;
+      background:rgba(0,0,0,0.55); color:#fff; border:none;
+      border-radius:50%; width:30px; height:30px;
+      font-size:0.95rem; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .book-preview {
+      background:var(--card); border-radius:var(--r); box-shadow:var(--sh);
+      padding:1.1rem 1.3rem; display:flex; gap:1.1rem; align-items:flex-start;
+      margin-bottom:0.9rem;
+    }
+    .book-preview-cover {
+      width:66px; height:96px; border-radius:6px; object-fit:cover;
+      flex-shrink:0; box-shadow:0 2px 10px rgba(0,0,0,0.18);
+    }
+    .book-no-cover {
+      width:66px; height:96px; background:rgba(0,0,0,0.07);
+      border-radius:6px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; font-size:1.8rem;
+    }
+    .book-preview-info { flex:1; min-width:0; }
+    .book-preview-title { font-size:1rem; font-weight:600; margin-bottom:0.2rem; }
+    .book-preview-author { font-size:0.87rem; color:var(--t2); margin-bottom:0.25rem; }
+    .book-preview-meta { font-size:0.78rem; color:var(--t3); }
+    .books-grid { display:grid; gap:0.65rem; }
+    .book-card {
+      background:var(--card); border-radius:var(--r); box-shadow:var(--sh-sm);
+      padding:0.8rem 1rem; display:flex; gap:0.85rem; align-items:center;
+    }
+    .book-card-cover {
+      width:40px; height:58px; border-radius:5px; object-fit:cover;
+      flex-shrink:0; box-shadow:0 1px 5px rgba(0,0,0,0.14);
+    }
+    .book-card-no-cover {
+      width:40px; height:58px; background:rgba(0,0,0,0.07);
+      border-radius:5px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; font-size:1rem;
+    }
+    .book-card-info { flex:1; min-width:0; }
+    .book-card-title { font-weight:600; font-size:0.88rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .book-card-author { font-size:0.78rem; color:var(--t2); }
+    .book-card-isbn { font-size:0.72rem; color:var(--t3); margin-top:0.1rem; }
+    .book-card-del {
+      background:none; border:none; color:var(--t3);
+      font-size:1rem; cursor:pointer; padding:0.3rem; flex-shrink:0;
+      transition:color 0.15s;
+    }
+    .book-card-del:hover { color:var(--red); }
 
     /* ─── NAV ─── */
     nav {
@@ -627,9 +689,10 @@
   <div class="nav-brand">MYC <span>Book Fair</span></div>
   <div class="conn-dot" id="conn-dot" title="Database connection"></div>
   <div class="nav-seg">
-    <button class="nav-tab" id="nt-admin"   onclick="navAdmin()">Admin</button>
+    <button class="nav-tab" id="nt-admin"        onclick="navAdmin()">Admin</button>
     <button class="nav-tab active" id="nt-checkin" onclick="showView('checkin')">Check‑In</button>
-    <button class="nav-tab" id="nt-walkin"  onclick="showView('walkin')">Walk‑In</button>
+    <button class="nav-tab" id="nt-walkin"        onclick="showView('walkin')">Walk‑In</button>
+    <button class="nav-tab" id="nt-bookregistry"  onclick="showView('bookregistry')">Books</button>
   </div>
 </nav>
 
@@ -774,6 +837,40 @@
   </div>
 </div>
 
+<!-- ══════ BOOK REGISTRY ══════ -->
+<div id="view-bookregistry" class="view">
+  <div class="hero">
+    <div class="hero-eyebrow">Inventory</div>
+    <h1>Book Registry</h1>
+    <div class="hero-sub">Scan or enter an ISBN to add books to the fair inventory</div>
+  </div>
+
+  <div class="form-block" style="max-width:640px;margin:0 auto 2rem">
+    <div class="section-label">Add a Book</div>
+    <div class="book-lookup-bar">
+      <input type="text" id="br-isbn" placeholder="Enter ISBN (10 or 13 digits)"
+             oninput="this.value=this.value.replace(/[^0-9Xx]/g,'')"
+             onkeydown="if(event.key==='Enter')lookupISBN()">
+      <button class="btn" onclick="toggleScanner()" id="br-scan-btn">📷 Scan</button>
+      <button class="btn btn-primary" onclick="lookupISBN()">Look Up</button>
+    </div>
+    <div id="br-scanner-wrap" class="scanner-wrap" style="display:none">
+      <div id="br-reader"></div>
+      <button class="scanner-close-btn" onclick="stopScanner()">✕</button>
+    </div>
+    <div id="br-status" style="font-size:0.84rem;color:var(--t2);min-height:1.3em;margin-bottom:0.4rem"></div>
+    <div id="br-preview"></div>
+  </div>
+
+  <div style="max-width:640px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+      <div class="section-label" style="margin:0" id="br-count-label">0 Books</div>
+      <button class="btn btn-export" id="br-export-btn" onclick="exportBooksCSV()" style="display:none">↓ Download Spreadsheet</button>
+    </div>
+    <div id="br-list" class="books-grid"></div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <script>
@@ -806,9 +903,12 @@ const AUTH_KEY = 'myc_admin_v1';
    INIT
 ════════════════════════════════════════════════ */
 let db = null;
-let households = [];
-let walkins    = [];
-let currentView = 'checkin';
+let households   = [];
+let walkins      = [];
+let books        = [];
+let pendingBook  = null;
+let html5Scanner = null;
+let currentView  = 'checkin';
 
 // Detect placeholder config
 const configSet = !firebaseConfig.apiKey.startsWith('REPLACE');
@@ -848,6 +948,13 @@ function initFirebase() {
     }));
     refreshDataViews();
   });
+
+  // Live books listener
+  db.ref('books').on('value', snap => {
+    const raw = snap.val() || {};
+    books = Object.values(raw);
+    renderBooks();
+  });
 }
 
 // localStorage fallback (when Firebase not configured yet)
@@ -856,7 +963,9 @@ function initLocalFallback() {
   document.getElementById('conn-dot').title = 'Firebase not configured — data stored locally only';
   try { households = JSON.parse(localStorage.getItem('myc_hh_fb') || '[]'); } catch { households = []; }
   try { walkins    = JSON.parse(localStorage.getItem('myc_wk_fb') || '[]'); } catch { walkins = []; }
+  try { books      = JSON.parse(localStorage.getItem('myc_books')  || '[]'); } catch { books = []; }
   refreshDataViews();
+  renderBooks();
 }
 
 /* ─── Kiosk mode: ?walkin in URL → walk-in only, no nav ─── */
@@ -864,6 +973,13 @@ const KIOSK_MODE = new URLSearchParams(location.search).has('walkin');
 if (KIOSK_MODE) {
   document.body.classList.add('kiosk');
   showView('walkin');
+}
+
+/* ─── Book registry mode: ?bookregistry in URL → books only, no nav ─── */
+const BOOK_MODE = new URLSearchParams(location.search).has('bookregistry');
+if (BOOK_MODE) {
+  document.body.classList.add('bookregistry');
+  showView('bookregistry');
 }
 
 function refreshDataViews() {
@@ -941,13 +1057,14 @@ function dbRemoveWalkin(id) {
    NAVIGATION
 ════════════════════════════════════════════════ */
 function showView(v) {
-  ['admin','checkin','walkin'].forEach(n => {
+  ['admin','checkin','walkin','bookregistry'].forEach(n => {
     document.getElementById('view-'+n).classList.toggle('active', n===v);
     document.getElementById('nt-'+n).classList.toggle('active', n===v);
   });
   currentView = v;
-  if (v === 'admin')   { renderAdminStats(); renderHouseholds(); }
-  if (v === 'checkin') { renderCIStats(); renderCI(); }
+  if (v === 'admin')        { renderAdminStats(); renderHouseholds(); }
+  if (v === 'checkin')      { renderCIStats(); renderCI(); }
+  if (v === 'bookregistry') { renderBooks(); }
 }
 
 function navAdmin() {
@@ -1598,6 +1715,222 @@ function toast(msg, type='success') {
     el.classList.add('out');
     setTimeout(()=>el.remove(), 250);
   }, 3000);
+}
+
+/* ════════════════════════════════════════════════
+   BOOK REGISTRY
+════════════════════════════════════════════════ */
+function setBookStatus(msg) {
+  const el = document.getElementById('br-status');
+  if (el) el.textContent = msg;
+}
+
+async function lookupISBN() {
+  const raw = document.getElementById('br-isbn')?.value || '';
+  const isbn = raw.replace(/[^0-9Xx]/g,'').toUpperCase();
+  if (isbn.length < 10) { setBookStatus('Enter a valid ISBN (10 or 13 digits).'); return; }
+
+  if (books.find(b => b.isbn === isbn)) {
+    setBookStatus('This book is already in the registry.');
+    return;
+  }
+
+  setBookStatus('Looking up…');
+  document.getElementById('br-preview').innerHTML = '';
+
+  try {
+    const res  = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+    const data = await res.json();
+    const info = data[`ISBN:${isbn}`];
+
+    if (!info) {
+      setBookStatus('Book not found — enter details below to add it manually.');
+      showManualBookForm(isbn);
+      return;
+    }
+
+    const cover = info.cover?.medium || info.cover?.small ||
+                  `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
+
+    pendingBook = {
+      isbn,
+      title:     info.title || 'Unknown Title',
+      authors:   (info.authors   || []).map(a => a.name).join(', ') || 'Unknown Author',
+      publisher: (info.publishers|| []).map(p => p.name).join(', ') || '',
+      year:      info.publish_date || '',
+      cover
+    };
+
+    setBookStatus('');
+    showBookPreview(pendingBook, true);
+  } catch {
+    setBookStatus('Error looking up book — check your connection.');
+  }
+}
+
+function showBookPreview(book, withCover) {
+  const el = document.getElementById('br-preview');
+  const coverHtml = withCover
+    ? `<img src="${esc(book.cover)}" class="book-preview-cover"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+       <div class="book-no-cover" style="display:none">📚</div>`
+    : `<div class="book-no-cover">📚</div>`;
+
+  el.innerHTML = `
+    <div class="book-preview">
+      ${coverHtml}
+      <div class="book-preview-info">
+        <div class="book-preview-title">${esc(book.title)}</div>
+        <div class="book-preview-author">${esc(book.authors)}</div>
+        <div class="book-preview-meta">${[book.publisher, book.year].filter(Boolean).join(' · ')}${book.publisher||book.year?'<br>':''}ISBN: ${esc(book.isbn)}</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="commitBook()">Add to Registry</button>
+  `;
+}
+
+function showManualBookForm(isbn) {
+  const el = document.getElementById('br-preview');
+  el.innerHTML = `
+    <div class="form-block" style="margin-bottom:.75rem">
+      <div class="form-grid">
+        <div class="form-group"><label>Title</label><input type="text" id="br-m-title" placeholder="Book title"></div>
+        <div class="form-group"><label>Author</label><input type="text" id="br-m-author" placeholder="Author name"></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="commitManualBook('${esc(isbn)}')">Add to Registry</button>
+  `;
+}
+
+function commitManualBook(isbn) {
+  pendingBook = {
+    isbn,
+    title:   (document.getElementById('br-m-title')?.value.trim()  || 'Unknown Title'),
+    authors: (document.getElementById('br-m-author')?.value.trim() || ''),
+    publisher: '', year: '', cover: ''
+  };
+  commitBook();
+}
+
+function commitBook() {
+  if (!pendingBook) return;
+  const book = { ...pendingBook, addedAt: new Date().toISOString() };
+
+  if (db) {
+    db.ref(`books/${book.isbn}`).set(book);
+  } else {
+    books.push(book);
+    localStorage.setItem('myc_books', JSON.stringify(books));
+    renderBooks();
+  }
+
+  pendingBook = null;
+  document.getElementById('br-isbn').value = '';
+  document.getElementById('br-preview').innerHTML = '';
+  setBookStatus('');
+  toast('Book added to registry!');
+}
+
+function removeBook(isbn) {
+  if (!confirm('Remove this book from the registry?')) return;
+  if (db) {
+    db.ref(`books/${isbn}`).remove();
+  } else {
+    books = books.filter(b => b.isbn !== isbn);
+    localStorage.setItem('myc_books', JSON.stringify(books));
+    renderBooks();
+  }
+  toast('Book removed.', 'info');
+}
+
+function renderBooks() {
+  const list = document.getElementById('br-list');
+  if (!list) return;
+
+  const lbl = document.getElementById('br-count-label');
+  const exp = document.getElementById('br-export-btn');
+  if (lbl) lbl.textContent = `${books.length} Book${books.length !== 1 ? 's' : ''}`;
+  if (exp) exp.style.display = books.length ? '' : 'none';
+
+  if (!books.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📚</div>
+      <div class="empty-t">No books yet</div>
+      <div class="empty-s">Scan a barcode or type an ISBN above to get started.</div>
+    </div>`;
+    return;
+  }
+
+  const sorted = [...books].sort((a,b) => (a.title||'').localeCompare(b.title||''));
+  list.innerHTML = sorted.map(b => {
+    const coverHtml = b.cover
+      ? `<img src="${esc(b.cover)}" class="book-card-cover"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+         <div class="book-card-no-cover" style="display:none">📚</div>`
+      : `<div class="book-card-no-cover">📚</div>`;
+    return `
+      <div class="book-card">
+        ${coverHtml}
+        <div class="book-card-info">
+          <div class="book-card-title">${esc(b.title)}</div>
+          <div class="book-card-author">${esc(b.authors)}</div>
+          <div class="book-card-isbn">ISBN ${esc(b.isbn)}</div>
+        </div>
+        <button class="book-card-del" onclick="removeBook('${esc(b.isbn)}')" title="Remove">✕</button>
+      </div>`;
+  }).join('');
+}
+
+function exportBooksCSV() {
+  if (!books.length) { toast('No books to export.', 'info'); return; }
+  let csv = 'ISBN,Title,Author(s),Publisher,Year,Added At\n';
+  books.forEach(b => {
+    csv += row([b.isbn, b.title, b.authors, b.publisher||'', b.year||'', b.addedAt||'']);
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'myc-book-registry.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ─── Barcode scanner ─── */
+function toggleScanner() {
+  const wrap = document.getElementById('br-scanner-wrap');
+  if (wrap.style.display === 'none') {
+    wrap.style.display = '';
+    startScanner();
+  } else {
+    stopScanner();
+  }
+}
+
+function startScanner() {
+  if (!window.Html5Qrcode) { toast('Scanner unavailable.', 'error'); return; }
+  html5Scanner = new Html5Qrcode('br-reader');
+  html5Scanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 260, height: 120 } },
+    (code) => {
+      const isbn = code.replace(/[^0-9Xx]/g, '').toUpperCase();
+      stopScanner();
+      document.getElementById('br-isbn').value = isbn;
+      lookupISBN();
+    },
+    () => {}
+  ).catch(() => {
+    toast('Camera not available.', 'error');
+    stopScanner();
+  });
+}
+
+function stopScanner() {
+  document.getElementById('br-scanner-wrap').style.display = 'none';
+  if (html5Scanner) {
+    html5Scanner.stop().catch(() => {});
+    html5Scanner = null;
+  }
 }
 
 /* ════════════════════════════════════════════════
