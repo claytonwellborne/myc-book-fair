@@ -116,6 +116,40 @@
       transition:color 0.15s;
     }
     .book-card-del:hover { color:var(--red); }
+    .book-card { cursor:pointer; transition:box-shadow 0.15s; }
+    .book-card:hover { box-shadow:var(--sh); }
+
+    /* ─── BOOK DETAIL SHEET ─── */
+    .book-sheet-overlay {
+      position:fixed; inset:0; z-index:500;
+      background:rgba(0,0,0,0.38);
+      display:flex; align-items:flex-end;
+      animation:fadeIn 0.2s ease;
+    }
+    .book-sheet-overlay.hidden { display:none; }
+    .book-sheet {
+      background:var(--card); border-radius:22px 22px 0 0;
+      padding:0 1.5rem 2rem; width:100%; max-height:88vh; overflow-y:auto;
+      animation:slideUp 0.3s cubic-bezier(0.34,1.2,0.64,1);
+    }
+    @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+    .book-sheet-handle {
+      width:36px; height:4px; background:rgba(0,0,0,0.13);
+      border-radius:2px; margin:14px auto 1.4rem;
+    }
+    .book-sheet-cover {
+      width:100px; height:146px; border-radius:8px; object-fit:cover;
+      flex-shrink:0; box-shadow:0 6px 22px rgba(0,0,0,0.25);
+    }
+    .book-sheet-no-cover {
+      width:100px; height:146px; background:rgba(0,0,0,0.07);
+      border-radius:8px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; font-size:2.4rem;
+    }
+    .detail-label {
+      font-size:0.7rem; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.07em; color:var(--t2); margin-bottom:0.4rem; margin-top:1.1rem;
+    }
 
     /* ─── NAV ─── */
     nav {
@@ -880,6 +914,11 @@
     </div>
     <div id="br-list" class="books-grid"></div>
   </div>
+</div>
+
+<!-- ══════ BOOK DETAIL SHEET ══════ -->
+<div id="book-sheet-overlay" class="book-sheet-overlay hidden" onclick="closeBookDetail(event)">
+  <div class="book-sheet" id="book-sheet-body"></div>
 </div>
 
 <div class="toast-wrap" id="toast-wrap"></div>
@@ -1778,9 +1817,8 @@ async function lookupISBN() {
 
     if (vol) {
       const cover = (vol.imageLinks?.thumbnail || vol.imageLinks?.smallThumbnail || '')
-                    .replace(/^http:/, 'https:').replace('zoom=1', 'zoom=2');
-      const rawDesc    = vol.description || '';
-      const description = rawDesc.length > 300 ? rawDesc.slice(0, 297) + '…' : rawDesc;
+                    .replace(/^http:/, 'https:');
+      const description = (vol.description || '').slice(0, 900);
 
       pendingBook = {
         isbn,
@@ -1954,9 +1992,10 @@ function renderBooks() {
 
   const sorted = [...books].sort((a,b) => (a.title||'').localeCompare(b.title||''));
   list.innerHTML = sorted.map(b => {
+    const olFallback = `https://covers.openlibrary.org/b/isbn/${b.isbn}-M.jpg`;
     const coverHtml = b.cover
       ? `<img src="${esc(b.cover)}" class="book-card-cover"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+              onerror="this.src='${olFallback}';this.onerror=function(){this.style.display='none';this.nextElementSibling.style.display='flex'}" alt="">
          <div class="book-card-no-cover" style="display:none">📚</div>`
       : `<div class="book-card-no-cover">📚</div>`;
 
@@ -1967,22 +2006,16 @@ function renderBooks() {
     const qtyHtml = (b.quantity && b.quantity > 1)
       ? `<span style="font-size:0.7rem;color:var(--t2);margin-left:4px">${b.quantity} copies</span>`
       : '';
-    const descHtml = b.description
-      ? `<div style="font-size:0.76rem;color:var(--t2);margin-top:0.2rem;line-height:1.45;
-                     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
-           ${esc(b.description)}</div>`
-      : '';
 
     return `
-      <div class="book-card" style="align-items:flex-start">
+      <div class="book-card" style="align-items:flex-start" onclick="openBookDetail('${esc(b.isbn)}')">
         ${coverHtml}
         <div class="book-card-info">
           <div class="book-card-title">${esc(b.title)}${qtyHtml}</div>
           <div class="book-card-author">${esc(b.authors)}${gradeHtml}</div>
           <div class="book-card-isbn">ISBN ${esc(b.isbn)}</div>
-          ${descHtml}
         </div>
-        <button class="book-card-del" onclick="removeBook('${esc(b.isbn)}')" title="Remove">✕</button>
+        <button class="book-card-del" onclick="event.stopPropagation();removeBook('${esc(b.isbn)}')" title="Remove">✕</button>
       </div>`;
   }).join('');
 }
@@ -2000,6 +2033,59 @@ function exportBooksCSV() {
   a.download = 'myc-book-registry.csv';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+/* ─── Book detail sheet ─── */
+function openBookDetail(isbn) {
+  const book = books.find(b => b.isbn === isbn);
+  if (!book) return;
+
+  const olFallback = `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg`;
+  const coverHtml = book.cover
+    ? `<img src="${esc(book.cover)}" class="book-sheet-cover"
+            onerror="this.src='${olFallback}';this.onerror=function(){this.style.display='none';this.nextElementSibling.style.display='flex'}" alt="">
+       <div class="book-sheet-no-cover" style="display:none">📚</div>`
+    : `<div class="book-sheet-no-cover">📚</div>`;
+
+  const metaParts = [book.publisher, book.year].filter(Boolean);
+  const gradeHtml = book.gradeLevel
+    ? `<span style="display:inline-block;font-size:0.76rem;font-weight:600;
+                    background:var(--blue-lt);color:var(--blue);padding:3px 10px;border-radius:20px">
+         ${esc(book.gradeLevel)}</span>`
+    : '';
+  const copies = book.quantity || 1;
+
+  document.getElementById('book-sheet-body').innerHTML = `
+    <div class="book-sheet-handle"></div>
+    <div style="display:flex;gap:1.3rem;align-items:flex-start;margin-bottom:1.3rem">
+      ${coverHtml}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:1.15rem;font-weight:700;line-height:1.3;margin-bottom:0.3rem">${esc(book.title)}</div>
+        <div style="font-size:0.9rem;color:var(--t2);margin-bottom:0.5rem">${esc(book.authors)}</div>
+        ${gradeHtml}
+        <div style="font-size:0.76rem;color:var(--t3);margin-top:0.55rem;line-height:1.7">
+          ${metaParts.length ? metaParts.join(' · ') + '<br>' : ''}
+          ISBN: ${esc(book.isbn)}<br>
+          ${copies} ${copies === 1 ? 'copy' : 'copies'} in inventory
+        </div>
+      </div>
+    </div>
+    ${book.description ? `
+      <div class="detail-label">About this book</div>
+      <div style="font-size:0.88rem;line-height:1.65;color:var(--t1);margin-bottom:1.2rem">${esc(book.description)}</div>
+    ` : ''}
+    <button class="btn" style="width:100%;justify-content:center;margin-top:0.5rem"
+            onclick="closeBookDetail()">Done</button>
+  `;
+
+  document.getElementById('book-sheet-overlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeBookDetail(e) {
+  if (e && e.target !== document.getElementById('book-sheet-overlay')) return;
+  document.getElementById('book-sheet-overlay').classList.add('hidden');
+  document.body.style.overflow = '';
 }
 
 /* ─── Barcode scanner ─── */
