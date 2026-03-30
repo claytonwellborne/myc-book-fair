@@ -951,6 +951,8 @@
       <div class="section-label" style="margin:0" id="br-count-label">0 Books</div>
       <button class="btn btn-export" id="br-export-btn" onclick="exportBooksCSV()" style="display:none">↓ Download Spreadsheet</button>
     </div>
+    <input type="text" id="br-search" placeholder="Search by title, author, ISBN, or donor…"
+           oninput="renderBooks()" style="margin-bottom:0.9rem">
     <div id="br-list" class="books-grid"></div>
   </div>
 </div>
@@ -1845,11 +1847,6 @@ async function lookupISBN() {
   const isbn = raw.replace(/[^0-9Xx]/g,'').toUpperCase();
   if (isbn.length < 10) { setBookStatus('Enter a valid ISBN (10 or 13 digits).'); return; }
 
-  if (books.find(b => b.isbn === isbn)) {
-    setBookStatus('This book is already in the registry.');
-    return;
-  }
-
   // reset state for each new lookup
   pendingBook = null;
   currentQty  = 1;
@@ -1958,9 +1955,14 @@ async function bulkLookup() {
     status.textContent = `Looking up ${i + 1} of ${isbns.length}…`;
     results.scrollTop  = results.scrollHeight;
 
-    if (books.find(b => b.isbn === isbn)) {
+    const existingBulk = books.find(b => b.isbn === isbn);
+    if (existingBulk) {
+      const newQty = (existingBulk.quantity || 1) + 1;
+      const mergedDonors = [...new Set([...(existingBulk.donors || []), ...donors])];
+      if (db) { db.ref(`books/${isbn}`).update({ quantity: newQty, donors: mergedDonors }); }
+      else { existingBulk.quantity = newQty; existingBulk.donors = mergedDonors; localStorage.setItem('myc_books', JSON.stringify(books)); renderBooks(); }
       skipped++;
-      results.innerHTML += `<div style="color:var(--t2)">⟳ ${isbn} — already in registry</div>`;
+      results.innerHTML += `<div style="color:var(--t2)">⟳ ${isbn} — already in registry, updated to ${newQty} copies</div>`;
       continue;
     }
 
@@ -2121,9 +2123,30 @@ function commitManualBook(isbn) {
 function commitBook() {
   if (!pendingBook) return;
   const donorRaw = (document.getElementById('br-donor')?.value || '').trim();
-  const donors   = donorRaw ? donorRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const book = { ...pendingBook, quantity: currentQty, donors, addedAt: new Date().toISOString() };
+  const newDonors = donorRaw ? donorRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
+  const existing = books.find(b => b.isbn === pendingBook.isbn);
+  if (existing) {
+    // Duplicate — bump quantity and merge donors
+    const merged = {
+      ...existing,
+      quantity: (existing.quantity || 1) + currentQty,
+      donors: [...new Set([...(existing.donors || []), ...newDonors])]
+    };
+    if (db) {
+      db.ref(`books/${merged.isbn}`).update({ quantity: merged.quantity, donors: merged.donors });
+    } else {
+      const idx = books.findIndex(b => b.isbn === merged.isbn);
+      books[idx] = merged;
+      localStorage.setItem('myc_books', JSON.stringify(books));
+      renderBooks();
+    }
+    pendingBook = null; currentQty = 1; clearLookup();
+    toast(`Already in registry — updated to ${merged.quantity} copies.`, 'info');
+    return;
+  }
+
+  const book = { ...pendingBook, quantity: currentQty, donors: newDonors, addedAt: new Date().toISOString() };
   if (db) {
     db.ref(`books/${book.isbn}`).set(book);
   } else {
@@ -2171,8 +2194,17 @@ function renderBooks() {
     return;
   }
 
-  const sorted = [...books].sort((a,b) => (a.title||'').localeCompare(b.title||''));
-  list.innerHTML = sorted.map(b => {
+  const q = (document.getElementById('br-search')?.value || '').toLowerCase().trim();
+  const filtered = [...books]
+    .filter(b => !q || [b.title, b.authors, b.isbn, ...(b.donors||[])].join(' ').toLowerCase().includes(q))
+    .sort((a,b) => (a.title||'').localeCompare(b.title||''));
+
+  if (!filtered.length && q) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-t">No results</div><div class="empty-s">No books match "${esc(q)}"</div></div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(b => {
     const olFallback = `https://covers.openlibrary.org/b/isbn/${b.isbn}-M.jpg`;
     const coverHtml = b.cover
       ? `<img src="${esc(b.cover)}" class="book-card-cover"
@@ -2196,13 +2228,15 @@ function renderBooks() {
         ).join('')}</div>`
       : '';
 
+    const addedDate = b.addedAt ? new Date(b.addedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+
     return `
       <div class="book-card" style="align-items:flex-start" onclick="openBookDetail('${esc(b.isbn)}')">
         ${coverHtml}
         <div class="book-card-info">
           <div class="book-card-title">${esc(b.title)}${qtyHtml}</div>
           <div class="book-card-author">${esc(b.authors)}${gradeHtml}</div>
-          <div class="book-card-isbn">ISBN ${esc(b.isbn)}</div>
+          <div class="book-card-isbn">ISBN ${esc(b.isbn)}${addedDate ? ` · Added ${addedDate}` : ''}</div>
           ${donorHtml}
         </div>
         <button class="book-card-del" onclick="event.stopPropagation();removeBook('${esc(b.isbn)}')" title="Remove">✕</button>
@@ -2268,7 +2302,7 @@ function openBookDetail(isbn) {
         <div style="font-size:0.76rem;color:var(--t3);margin-top:0.55rem;line-height:1.7">
           ${metaParts.length ? metaParts.join(' · ') + '<br>' : ''}
           ISBN: ${esc(book.isbn)}<br>
-          ${copies} ${copies === 1 ? 'copy' : 'copies'} in inventory
+          ${book.addedAt ? 'Added ' + new Date(book.addedAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : ''}
         </div>
       </div>
     </div>
@@ -2276,6 +2310,16 @@ function openBookDetail(isbn) {
       <div class="detail-label">About this book</div>
       <div style="font-size:0.88rem;line-height:1.65;color:var(--t1);margin-bottom:1.2rem">${esc(book.description)}</div>
     ` : ''}
+    <div class="detail-label">Copies in inventory</div>
+    <div style="display:flex;align-items:center;gap:0.9rem;margin-bottom:1.3rem">
+      <div class="qty-stepper">
+        <button onclick="changeDetailQty('${esc(book.isbn)}',-1)">−</button>
+        <span class="qty-stepper-num" id="detail-qty-display">${copies}</span>
+        <button onclick="changeDetailQty('${esc(book.isbn)}',1)">+</button>
+      </div>
+      <span style="font-size:0.83rem;color:var(--t2)">${copies === 1 ? 'copy' : 'copies'}</span>
+    </div>
+
     <div class="detail-label">Donated by</div>
     <div id="donor-pills" style="margin-bottom:0.75rem">${donorPills}</div>
     <div style="display:flex;gap:0.6rem;margin-bottom:1.5rem">
@@ -2297,6 +2341,23 @@ function closeBookDetail(e) {
   if (e && e.target !== document.getElementById('book-sheet-overlay')) return;
   document.getElementById('book-sheet-overlay').classList.add('hidden');
   document.body.style.overflow = '';
+}
+
+function changeDetailQty(isbn, delta) {
+  const book = books.find(b => b.isbn === isbn);
+  if (!book) return;
+  const newQty = Math.max(1, (book.quantity || 1) + delta);
+  if (db) {
+    db.ref(`books/${isbn}/quantity`).set(newQty);
+  } else {
+    book.quantity = newQty;
+    localStorage.setItem('myc_books', JSON.stringify(books));
+    renderBooks();
+  }
+  const el = document.getElementById('detail-qty-display');
+  if (el) el.textContent = newQty;
+  // update in-memory immediately so it feels instant
+  book.quantity = newQty;
 }
 
 function addDonor(isbn) {
