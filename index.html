@@ -920,16 +920,20 @@
     <div id="br-bulk-section" style="display:none">
       <div class="form-group" style="margin-bottom:0.75rem">
         <label>Paste ISBNs — one per line</label>
-        <textarea id="br-bulk-input" rows="7"
+        <textarea id="br-bulk-input" rows="6"
                   placeholder="9780062315007&#10;9780060731335&#10;9780743273565&#10;…"
                   style="resize:vertical;font-family:monospace;font-size:0.84rem"></textarea>
       </div>
-      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.9rem">
         <span style="font-size:0.82rem;color:var(--t2)">or</span>
         <label class="btn" style="cursor:pointer;margin:0">
           📄 Upload .txt / .csv
           <input type="file" id="br-bulk-file" accept=".txt,.csv" style="display:none" onchange="loadBulkFile(this)">
         </label>
+      </div>
+      <div class="form-group" style="margin-bottom:0.9rem">
+        <label>Donated by (applies to all books in this batch)</label>
+        <input type="text" id="br-bulk-donor" placeholder="e.g. Smith Family, Anonymous…">
       </div>
       <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="bulkLookup()">Add All</button>
       <div id="br-bulk-progress" style="display:none;margin-top:1.1rem">
@@ -1927,12 +1931,15 @@ function loadBulkFile(input) {
 async function bulkLookup() {
   const raw = document.getElementById('br-bulk-input').value;
   const isbns = [...new Set(
-    raw.split(/[\n,;\t\s]+/)
+    raw.split(/\n/)
        .map(s => s.replace(/[^0-9Xx]/g, '').toUpperCase())
-       .filter(s => s.length >= 10)
+       .filter(s => s.length === 10 || s.length === 13)
   )];
 
-  if (!isbns.length) { toast('No valid ISBNs found.', 'error'); return; }
+  if (!isbns.length) { toast('No valid ISBNs found. Enter one per line.', 'error'); return; }
+
+  const donorRaw = (document.getElementById('br-bulk-donor')?.value || '').trim();
+  const donors   = donorRaw ? donorRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const prog    = document.getElementById('br-bulk-progress');
   const bar     = document.getElementById('br-bulk-bar');
@@ -1949,6 +1956,7 @@ async function bulkLookup() {
     const isbn = isbns[i];
     bar.style.width    = `${Math.round(((i + 1) / isbns.length) * 100)}%`;
     status.textContent = `Looking up ${i + 1} of ${isbns.length}…`;
+    results.scrollTop  = results.scrollHeight;
 
     if (books.find(b => b.isbn === isbn)) {
       skipped++;
@@ -1956,62 +1964,97 @@ async function bulkLookup() {
       continue;
     }
 
+    let saved = false;
     try {
-      const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-      const data = await res.json();
-      const vol  = data.items?.[0]?.volumeInfo;
-
-      if (!vol) {
-        failed++;
-        results.innerHTML += `<div style="color:var(--red)">✕ ${isbn} — not found</div>`;
-      } else {
-        const cover = (vol.imageLinks?.thumbnail || vol.imageLinks?.smallThumbnail || '')
-                      .replace(/^http:/, 'https:');
-        const book = {
-          isbn,
-          title:      vol.title || 'Unknown Title',
-          authors:    (vol.authors || []).join(', ') || 'Unknown',
-          publisher:  vol.publisher || '',
-          year:       (vol.publishedDate || '').slice(0, 4),
-          cover,
-          description: (vol.description || '').slice(0, 900),
-          gradeLevel: inferGradeLevel(vol.categories || []),
-          categories: (vol.categories || []).join(', '),
-          quantity:   1,
-          addedAt:    new Date().toISOString()
-        };
-        if (db) {
-          db.ref(`books/${book.isbn}`).set(book);
-        } else {
-          books.push(book);
-          localStorage.setItem('myc_books', JSON.stringify(books));
-          renderBooks();
+      // Primary: Google Books
+      const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1`);
+      if (res.ok) {
+        const data = await res.json();
+        const vol  = data.items?.[0]?.volumeInfo;
+        if (vol) {
+          const cover = (vol.imageLinks?.thumbnail || vol.imageLinks?.smallThumbnail || '')
+                        .replace(/^http:/, 'https:');
+          const book = {
+            isbn,
+            title:       vol.title || 'Unknown Title',
+            authors:     (vol.authors || []).join(', ') || 'Unknown',
+            publisher:   vol.publisher || '',
+            year:        (vol.publishedDate || '').slice(0, 4),
+            cover,
+            description: (vol.description || '').slice(0, 900),
+            gradeLevel:  inferGradeLevel(vol.categories || []),
+            categories:  (vol.categories || []).join(', '),
+            quantity:    1,
+            donors,
+            addedAt:     new Date().toISOString()
+          };
+          if (db) { db.ref(`books/${isbn}`).set(book); }
+          else { books.push(book); localStorage.setItem('myc_books', JSON.stringify(books)); renderBooks(); }
+          added++;
+          results.innerHTML += `<div style="color:#1a7a3a">✓ ${isbn} — ${esc(book.title)}</div>`;
+          saved = true;
         }
-        added++;
-        results.innerHTML += `<div style="color:#1a7a3a">✓ ${isbn} — ${esc(book.title)}</div>`;
       }
-    } catch {
+
+      // Fallback: Open Library
+      if (!saved) {
+        const res2  = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+        const data2 = await res2.json();
+        const info  = data2[`ISBN:${isbn}`];
+        if (info) {
+          const cover = (info.cover?.medium || info.cover?.small || '').replace(/^http:/, 'https:');
+          const book = {
+            isbn,
+            title:       info.title || 'Unknown Title',
+            authors:     (info.authors || []).map(a => a.name).join(', ') || 'Unknown',
+            publisher:   (info.publishers || []).map(p => p.name).join(', ') || '',
+            year:        info.publish_date || '',
+            cover,
+            description: '',
+            gradeLevel:  '',
+            categories:  '',
+            quantity:    1,
+            donors,
+            addedAt:     new Date().toISOString()
+          };
+          if (db) { db.ref(`books/${isbn}`).set(book); }
+          else { books.push(book); localStorage.setItem('myc_books', JSON.stringify(books)); renderBooks(); }
+          added++;
+          results.innerHTML += `<div style="color:#1a7a3a">✓ ${isbn} — ${esc(book.title)} <span style="color:var(--t3)">(Open Library)</span></div>`;
+          saved = true;
+        }
+      }
+
+      if (!saved) {
+        failed++;
+        results.innerHTML += `<div style="color:var(--red)">✕ ${isbn} — not found in any database</div>`;
+      }
+    } catch(e) {
       failed++;
-      results.innerHTML += `<div style="color:var(--red)">✕ ${isbn} — lookup error</div>`;
+      results.innerHTML += `<div style="color:var(--red)">✕ ${isbn} — error: ${esc(e.message)}</div>`;
     }
 
-    if (i < isbns.length - 1) await new Promise(r => setTimeout(r, 250));
+    if (i < isbns.length - 1) await new Promise(r => setTimeout(r, 400));
   }
 
   bar.style.width    = '100%';
-  status.textContent = `Done — ${added} added, ${skipped} already in registry, ${failed} not found`;
+  status.textContent = `Done — ${added} added, ${skipped} skipped, ${failed} not found`;
   if (added) toast(`${added} book${added !== 1 ? 's' : ''} added to registry.`, 'success');
 }
 
 function qtyStepperHTML() {
   return `
-    <div style="display:flex;align-items:center;gap:0.9rem;margin:1rem 0">
+    <div style="display:flex;align-items:center;gap:0.9rem;margin:1rem 0 0.75rem">
       <span style="font-size:0.85rem;font-weight:500;color:var(--t2)">Copies</span>
       <div class="qty-stepper">
         <button onclick="changeQty(-1)">−</button>
         <span class="qty-stepper-num" id="br-qty-display">1</span>
         <button onclick="changeQty(1)">+</button>
       </div>
+    </div>
+    <div class="form-group" style="margin-bottom:0.75rem">
+      <label>Donated by</label>
+      <input type="text" id="br-donor" placeholder="e.g. Smith Family, Anonymous…">
     </div>`;
 }
 
@@ -2077,7 +2120,9 @@ function commitManualBook(isbn) {
 
 function commitBook() {
   if (!pendingBook) return;
-  const book = { ...pendingBook, quantity: currentQty, addedAt: new Date().toISOString() };
+  const donorRaw = (document.getElementById('br-donor')?.value || '').trim();
+  const donors   = donorRaw ? donorRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const book = { ...pendingBook, quantity: currentQty, donors, addedAt: new Date().toISOString() };
 
   if (db) {
     db.ref(`books/${book.isbn}`).set(book);
@@ -2143,6 +2188,14 @@ function renderBooks() {
       ? `<span style="font-size:0.7rem;color:var(--t2);margin-left:4px">${b.quantity} copies</span>`
       : '';
 
+    const donors = b.donors || [];
+    const donorHtml = donors.length
+      ? `<div style="margin-top:0.3rem">${donors.map(d =>
+          `<span style="font-size:0.68rem;font-weight:500;background:rgba(124,58,237,0.1);
+                        color:#7C3AED;padding:1px 7px;border-radius:20px;margin-right:3px">${esc(d)}</span>`
+        ).join('')}</div>`
+      : '';
+
     return `
       <div class="book-card" style="align-items:flex-start" onclick="openBookDetail('${esc(b.isbn)}')">
         ${coverHtml}
@@ -2150,6 +2203,7 @@ function renderBooks() {
           <div class="book-card-title">${esc(b.title)}${qtyHtml}</div>
           <div class="book-card-author">${esc(b.authors)}${gradeHtml}</div>
           <div class="book-card-isbn">ISBN ${esc(b.isbn)}</div>
+          ${donorHtml}
         </div>
         <button class="book-card-del" onclick="event.stopPropagation();removeBook('${esc(b.isbn)}')" title="Remove">✕</button>
       </div>`;
@@ -2158,10 +2212,11 @@ function renderBooks() {
 
 function exportBooksCSV() {
   if (!books.length) { toast('No books to export.', 'info'); return; }
-  let csv = 'ISBN,Title,Author(s),Publisher,Year,Grade Level,Copies,Description,Added At\n';
+  let csv = 'ISBN,Title,Author(s),Publisher,Year,Grade Level,Copies,Donated By,Description,Added At\n';
   books.forEach(b => {
     csv += row([b.isbn, b.title, b.authors, b.publisher||'', b.year||'',
-                b.gradeLevel||'', b.quantity||1, b.description||'', b.addedAt||'']);
+                b.gradeLevel||'', b.quantity||1, (b.donors||[]).join('; '),
+                b.description||'', b.addedAt||'']);
   });
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
@@ -2191,6 +2246,17 @@ function openBookDetail(isbn) {
     : '';
   const copies = book.quantity || 1;
 
+  const donors = book.donors || [];
+  const donorPills = donors.length
+    ? donors.map(d => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:0.73rem;font-weight:500;
+                                    background:rgba(124,58,237,0.1);color:#7C3AED;padding:3px 10px;
+                                    border-radius:20px;margin:2px 3px 2px 0">
+                          ${esc(d)}
+                          <span onclick="removeDonor('${esc(book.isbn)}','${esc(d)}')"
+                                style="cursor:pointer;opacity:0.6;font-size:0.85em">✕</span>
+                        </span>`).join('')
+    : `<span style="font-size:0.8rem;color:var(--t3)">No donors tagged yet</span>`;
+
   document.getElementById('book-sheet-body').innerHTML = `
     <div class="book-sheet-handle"></div>
     <div style="display:flex;gap:1.3rem;align-items:flex-start;margin-bottom:1.3rem">
@@ -2210,7 +2276,16 @@ function openBookDetail(isbn) {
       <div class="detail-label">About this book</div>
       <div style="font-size:0.88rem;line-height:1.65;color:var(--t1);margin-bottom:1.2rem">${esc(book.description)}</div>
     ` : ''}
-    <button class="btn" style="width:100%;justify-content:center;margin-top:0.5rem"
+    <div class="detail-label">Donated by</div>
+    <div id="donor-pills" style="margin-bottom:0.75rem">${donorPills}</div>
+    <div style="display:flex;gap:0.6rem;margin-bottom:1.5rem">
+      <input type="text" id="donor-add-input" placeholder="Add donor name…"
+             onkeydown="if(event.key==='Enter')addDonor('${esc(book.isbn)}')"
+             style="flex:1">
+      <button class="btn btn-primary" style="padding:.55rem 1rem;font-size:0.85rem"
+              onclick="addDonor('${esc(book.isbn)}')">Add</button>
+    </div>
+    <button class="btn" style="width:100%;justify-content:center"
             onclick="closeBookDetail()">Done</button>
   `;
 
@@ -2222,6 +2297,42 @@ function closeBookDetail(e) {
   if (e && e.target !== document.getElementById('book-sheet-overlay')) return;
   document.getElementById('book-sheet-overlay').classList.add('hidden');
   document.body.style.overflow = '';
+}
+
+function addDonor(isbn) {
+  const input = document.getElementById('donor-add-input');
+  const name  = input?.value.trim();
+  if (!name) return;
+  const book = books.find(b => b.isbn === isbn);
+  if (!book) return;
+  const donors = [...(book.donors || [])];
+  if (donors.includes(name)) { toast('Already tagged.', 'info'); return; }
+  donors.push(name);
+  if (db) {
+    db.ref(`books/${isbn}/donors`).set(donors, () => openBookDetail(isbn));
+  } else {
+    book.donors = donors;
+    localStorage.setItem('myc_books', JSON.stringify(books));
+    renderBooks();
+    openBookDetail(isbn);
+  }
+  if (input) input.value = '';
+  toast(`${name} added as donor.`, 'success');
+}
+
+function removeDonor(isbn, name) {
+  const book = books.find(b => b.isbn === isbn);
+  if (!book) return;
+  const donors = (book.donors || []).filter(d => d !== name);
+  if (db) {
+    db.ref(`books/${isbn}/donors`).set(donors, () => openBookDetail(isbn));
+  } else {
+    book.donors = donors;
+    localStorage.setItem('myc_books', JSON.stringify(books));
+    renderBooks();
+    openBookDetail(isbn);
+  }
+  toast(`${name} removed.`, 'info');
 }
 
 /* ─── Barcode scanner ─── */
