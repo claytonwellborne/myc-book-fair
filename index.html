@@ -891,20 +891,55 @@
   </div>
 
   <div class="form-block" style="max-width:640px;margin:0 auto 2rem">
-    <div class="section-label">Add a Book</div>
-    <div class="book-lookup-bar">
-      <input type="text" id="br-isbn" placeholder="Enter ISBN (10 or 13 digits)"
-             oninput="this.value=this.value.replace(/[^0-9Xx]/g,'')"
-             onkeydown="if(event.key==='Enter')lookupISBN()">
-      <button class="btn" onclick="toggleScanner()" id="br-scan-btn">📷 Scan</button>
-      <button class="btn btn-primary" onclick="lookupISBN()">Look Up</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.9rem">
+      <div class="section-label" style="margin:0">Add Books</div>
+      <div class="nav-seg">
+        <button class="nav-tab active" id="add-tab-single" onclick="switchAddMode('single')">Single</button>
+        <button class="nav-tab"        id="add-tab-bulk"   onclick="switchAddMode('bulk')">Bulk Import</button>
+      </div>
     </div>
-    <div id="br-scanner-wrap" class="scanner-wrap" style="display:none">
-      <div id="br-reader"></div>
-      <button class="scanner-close-btn" onclick="stopScanner()">✕</button>
+
+    <!-- Single mode -->
+    <div id="br-single-section">
+      <div class="book-lookup-bar">
+        <input type="text" id="br-isbn" placeholder="Enter ISBN (10 or 13 digits)"
+               oninput="this.value=this.value.replace(/[^0-9Xx]/g,'')"
+               onkeydown="if(event.key==='Enter')lookupISBN()">
+        <button class="btn" onclick="toggleScanner()" id="br-scan-btn">📷 Scan</button>
+        <button class="btn btn-primary" onclick="lookupISBN()">Look Up</button>
+      </div>
+      <div id="br-scanner-wrap" class="scanner-wrap" style="display:none">
+        <div id="br-reader"></div>
+        <button class="scanner-close-btn" onclick="stopScanner()">✕</button>
+      </div>
+      <div id="br-status" style="font-size:0.84rem;color:var(--t2);min-height:1.3em;margin-bottom:0.4rem"></div>
+      <div id="br-preview"></div>
     </div>
-    <div id="br-status" style="font-size:0.84rem;color:var(--t2);min-height:1.3em;margin-bottom:0.4rem"></div>
-    <div id="br-preview"></div>
+
+    <!-- Bulk mode -->
+    <div id="br-bulk-section" style="display:none">
+      <div class="form-group" style="margin-bottom:0.75rem">
+        <label>Paste ISBNs — one per line</label>
+        <textarea id="br-bulk-input" rows="7"
+                  placeholder="9780062315007&#10;9780060731335&#10;9780743273565&#10;…"
+                  style="resize:vertical;font-family:monospace;font-size:0.84rem"></textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+        <span style="font-size:0.82rem;color:var(--t2)">or</span>
+        <label class="btn" style="cursor:pointer;margin:0">
+          📄 Upload .txt / .csv
+          <input type="file" id="br-bulk-file" accept=".txt,.csv" style="display:none" onchange="loadBulkFile(this)">
+        </label>
+      </div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="bulkLookup()">Add All</button>
+      <div id="br-bulk-progress" style="display:none;margin-top:1.1rem">
+        <div style="background:rgba(0,0,0,0.07);border-radius:99px;height:5px;margin-bottom:0.55rem;overflow:hidden">
+          <div id="br-bulk-bar" style="height:100%;border-radius:99px;background:var(--blue);width:0%;transition:width 0.35s ease"></div>
+        </div>
+        <div id="br-bulk-status" style="font-size:0.83rem;color:var(--t2);margin-bottom:0.5rem"></div>
+        <div id="br-bulk-results" style="font-size:0.8rem;line-height:1.9;max-height:200px;overflow-y:auto"></div>
+      </div>
+    </div>
   </div>
 
   <div style="max-width:640px;margin:0 auto">
@@ -1863,6 +1898,95 @@ async function lookupISBN() {
     setBookStatus('Could not reach book database — enter details manually.');
     showManualBookForm(isbn);
   }
+}
+
+function switchAddMode(mode) {
+  document.getElementById('br-single-section').style.display = mode === 'single' ? '' : 'none';
+  document.getElementById('br-bulk-section').style.display   = mode === 'bulk'   ? '' : 'none';
+  document.getElementById('add-tab-single').classList.toggle('active', mode === 'single');
+  document.getElementById('add-tab-bulk').classList.toggle('active',   mode === 'bulk');
+}
+
+function loadBulkFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('br-bulk-input').value = e.target.result; };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+async function bulkLookup() {
+  const raw = document.getElementById('br-bulk-input').value;
+  const isbns = [...new Set(
+    raw.split(/[\n,;\t\s]+/)
+       .map(s => s.replace(/[^0-9Xx]/g, '').toUpperCase())
+       .filter(s => s.length >= 10)
+  )];
+
+  if (!isbns.length) { toast('No valid ISBNs found.', 'error'); return; }
+
+  const prog    = document.getElementById('br-bulk-progress');
+  const bar     = document.getElementById('br-bulk-bar');
+  const status  = document.getElementById('br-bulk-status');
+  const results = document.getElementById('br-bulk-results');
+
+  prog.style.display = '';
+  results.innerHTML  = '';
+  bar.style.width    = '0%';
+
+  let added = 0, skipped = 0, failed = 0;
+
+  for (let i = 0; i < isbns.length; i++) {
+    const isbn = isbns[i];
+    bar.style.width    = `${Math.round(((i + 1) / isbns.length) * 100)}%`;
+    status.textContent = `Looking up ${i + 1} of ${isbns.length}…`;
+
+    if (books.find(b => b.isbn === isbn)) {
+      skipped++;
+      results.innerHTML += `<div style="color:var(--t2)">⟳ ${isbn} — already in registry</div>`;
+      continue;
+    }
+
+    try {
+      const res  = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
+      const data = await res.json();
+      const vol  = data.items?.[0]?.volumeInfo;
+
+      if (!vol) {
+        failed++;
+        results.innerHTML += `<div style="color:var(--red)">✕ ${isbn} — not found</div>`;
+      } else {
+        const cover = (vol.imageLinks?.thumbnail || vol.imageLinks?.smallThumbnail || '')
+                      .replace(/^http:/, 'https:');
+        const book = {
+          isbn,
+          title:      vol.title || 'Unknown Title',
+          authors:    (vol.authors || []).join(', ') || 'Unknown',
+          publisher:  vol.publisher || '',
+          year:       (vol.publishedDate || '').slice(0, 4),
+          cover,
+          description: (vol.description || '').slice(0, 900),
+          gradeLevel: inferGradeLevel(vol.categories || []),
+          categories: (vol.categories || []).join(', '),
+          quantity:   1,
+          addedAt:    new Date().toISOString()
+        };
+        dbSaveBook(book);
+        added++;
+        results.innerHTML += `<div style="color:#1a7a3a">✓ ${isbn} — ${esc(book.title)}</div>`;
+      }
+    } catch {
+      failed++;
+      results.innerHTML += `<div style="color:var(--red)">✕ ${isbn} — lookup error</div>`;
+    }
+
+    if (i < isbns.length - 1) await new Promise(r => setTimeout(r, 250));
+  }
+
+  bar.style.width    = '100%';
+  status.textContent = `Done — ${added} added, ${skipped} already in registry, ${failed} not found`;
+  if (added) toast(`${added} book${added !== 1 ? 's' : ''} added to registry.`, 'success');
 }
 
 function qtyStepperHTML() {
