@@ -1811,6 +1811,14 @@ function setBookStatus(msg) {
   if (el) el.textContent = msg;
 }
 
+function clearLookup() {
+  const inp = document.getElementById('br-isbn');
+  if (inp) inp.value = '';
+  const prev = document.getElementById('br-preview');
+  if (prev) prev.innerHTML = '';
+  setBookStatus('');
+}
+
 function inferGradeLevel(categories) {
   const c = categories.join(' ').toLowerCase();
   if (c.includes('picture book') || c.includes('board book') || c.includes('baby'))  return 'PreK–K';
@@ -1972,7 +1980,13 @@ async function bulkLookup() {
           quantity:   1,
           addedAt:    new Date().toISOString()
         };
-        dbSaveBook(book);
+        if (db) {
+          db.ref(`books/${book.isbn}`).set(book);
+        } else {
+          books.push(book);
+          localStorage.setItem('myc_books', JSON.stringify(books));
+          renderBooks();
+        }
         added++;
         results.innerHTML += `<div style="color:#1a7a3a">✓ ${isbn} — ${esc(book.title)}</div>`;
       }
@@ -2075,9 +2089,7 @@ function commitBook() {
 
   pendingBook = null;
   currentQty  = 1;
-  document.getElementById('br-isbn').value = '';
-  document.getElementById('br-preview').innerHTML = '';
-  setBookStatus('');
+  clearLookup();
   toast('Book added to registry!');
 }
 
